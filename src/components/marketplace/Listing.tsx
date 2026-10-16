@@ -8,6 +8,7 @@ import {
   type PriceInsight,
 } from "@/lib/dealership";
 import type { PublicListing } from "@/backend/services/marketplace.service";
+import { SaveCompareButtons } from "./SavedClient";
 
 export function PriceBadge({ insight }: { insight: PriceInsight | null }) {
   if (!insight) return null;
@@ -31,6 +32,7 @@ export function ListingCard({ car }: { car: PublicListing }) {
         {car.featured ? <span className="mk-ribbon">Featured</span> : null}
         {car.status === "reserved" ? <span className="mk-reserved">Reserved</span> : null}
         {car.photos.length > 1 ? <span className="mk-photo-count">📷 {car.photos.length}</span> : null}
+        <SaveCompareButtons id={car._id} type={car.vehicleType} />
       </div>
       <div className="mk-card-body">
         <div className="mk-card-title">{car.title}</div>

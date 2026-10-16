@@ -60,6 +60,7 @@ const navGroups: NavGroup[] = [
           items: [
             { href: "/ecommerce?tab=orders", label: "Orders" },
             { href: "/ecommerce?tab=products", label: "Products" },
+            { href: "/ecommerce?tab=coupons", label: "Coupons" },
             { href: "/ecommerce?tab=settings", label: "Shop Settings" },
           ],
         },

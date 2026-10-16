@@ -7,6 +7,9 @@ import { ProductCard } from "@/components/marketplace/ShopCards";
 import { shopService } from "@/backend/services/shop.service";
 import { ServiceError } from "@/backend/types";
 import { formatPKR } from "@/lib/dealership";
+import { settingsService } from "@/backend/services/settings.service";
+import { whatsappLink } from "@/lib/shop";
+import { siteUrl } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 type Params = Promise<{ slug: string }>;
@@ -35,8 +38,30 @@ export default async function ProductPage({ params }: { params: Params }) {
   const data = await load((await params).slug);
   if (!data) notFound();
   const { product: p, related } = data;
+  const settings = await settingsService.get().catch(() => null);
+  const url = `${siteUrl()}/shop/${p.slug}`;
+  const wa = whatsappLink(settings?.whatsapp || settings?.phone, `Hi, is "${p.title}" (${formatPKR(p.price)}) available? ${url}`);
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: p.title,
+    sku: p.sku,
+    brand: p.brand ? { "@type": "Brand", name: p.brand } : undefined,
+    category: p.category,
+    description: p.description,
+    image: p.images.slice(0, 5).map((i) => (i.startsWith("http") ? i : `${siteUrl()}${i}`)),
+    url,
+    offers: {
+      "@type": "Offer",
+      price: p.price,
+      priceCurrency: "PKR",
+      availability: p.inStock ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+      itemCondition: "https://schema.org/NewCondition",
+    },
+  };
   return (
     <section className="site-section mk-wrap">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       <nav className="mk-crumbs">
         <Link href="/shop">Shop</Link> › <Link href={`/shop?category=${encodeURIComponent(p.category)}`}>{p.category}</Link>
         <span style={{ float: "right" }}><CartBadge /></span>
@@ -61,6 +86,7 @@ export default async function ProductPage({ params }: { params: Params }) {
               {p.inStock ? (p.available <= 5 ? `Only ${p.available} left in stock` : "In stock") : "Out of stock"}
             </p>
             <AddToCart productId={p._id} available={p.available} />
+            {wa ? <a className="mk-wa" href={wa} target="_blank" rel="noopener noreferrer">Ask on WhatsApp</a> : null}
             <ul className="mk-msgs" style={{ marginTop: 14 }}>
               <li>💵 Cash on delivery available</li>
               <li>🚚 Delivery across Pakistan</li>

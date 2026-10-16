@@ -270,6 +270,7 @@ export function DealershipDeals({
             </button>
           ))}
         </div>
+        <a className="link-btn" href={withBranch("/api/export/deals", branch)}>Export CSV</a>
         <button type="button" className="btn-primary" onClick={() => openNew()}>+ New deal</button>
       </div>
       {error ? <div className="alert err">{error}</div> : null}

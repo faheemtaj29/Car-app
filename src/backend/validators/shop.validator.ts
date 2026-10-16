@@ -109,6 +109,7 @@ export const checkoutSchema = z.object({
   city: z.string().trim().min(2, "City is required").max(60),
   notes: z.string().trim().max(500).optional(),
   paymentMethod: z.enum(PAYMENT_METHODS).default("cod"),
+  couponCode: z.string().trim().max(30).optional().or(z.literal("")),
   /** The total the customer saw; the order is refused if prices changed meanwhile. */
   expectedTotal: z.coerce.number().min(0),
   website: honeypot,
@@ -128,6 +129,22 @@ export const orderActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("return"), reason: z.string().trim().min(3, "Give a reason") }),
   z.object({ action: z.literal("note"), note: z.string().trim().min(1).max(500) }),
 ]);
+
+export const couponSchema = z
+  .object({
+    code: z.string().trim().regex(/^[A-Za-z0-9_-]{3,30}$/, "Code: 3–30 letters, numbers, - or _"),
+    description: z.string().trim().max(120).optional(),
+    kind: z.enum(["percent", "fixed"]),
+    value: z.coerce.number().positive("Enter the discount"),
+    minSubtotal: z.coerce.number().min(0).default(0),
+    maxDiscount: z.coerce.number().min(0).default(0),
+    startsAt: z.string().optional().or(z.literal("")),
+    endsAt: z.string().optional().or(z.literal("")),
+    usageLimit: z.coerce.number().int().min(0).default(0),
+    perPhoneLimit: z.coerce.number().int().min(0).default(1),
+    active: z.boolean().default(true),
+  })
+  .refine((c) => c.kind !== "percent" || c.value <= 100, { message: "A percentage cannot exceed 100" });
 
 export const shopSettingsSchema = z.object({
   enabled: z.boolean(),

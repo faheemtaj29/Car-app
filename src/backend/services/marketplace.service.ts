@@ -425,6 +425,39 @@ export const marketplaceService = {
     };
   },
 
+  /** Several listings by id (Saved / Compare pages). No view counting; unknown ids are skipped. */
+  async listingsByIds(ids: string[]) {
+    await dbConnect();
+    const valid = [...new Set(ids)].filter((x) => Types.ObjectId.isValid(x)).slice(0, 30);
+    if (!valid.length) return [];
+    const [dealer, ads, branches] = await Promise.all([
+      Vehicle.find({ _id: { $in: valid }, published: true, status: { $in: LISTABLE } }).lean<Doc<IVehicle>[]>(),
+      ClassifiedAd.find({ _id: { $in: valid }, status: "active", expiresAt: { $gt: new Date() } }).select("-messages").lean<Doc<IClassifiedAd>[]>(),
+      branchMap(),
+    ]);
+    const rows: AnyListing[] = [...dealer, ...ads.map((a) => ({ ...a, _src: "private" as const }))];
+    const insights = await insightsFor(rows);
+    const byId = new Map(rows.map((r) => [String(r._id), r]));
+    return valid.flatMap((id) => {
+      const row = byId.get(id);
+      return row ? [anyToPublic(row, insights, branches)] : [];
+    });
+  },
+
+  /** Everything public, for the XML sitemap. */
+  async sitemapEntries() {
+    await dbConnect();
+    const [vehicles, ads, products] = await Promise.all([
+      Vehicle.find({ published: true, status: { $in: LISTABLE } }).select("vehicleType updatedAt").limit(5000).lean<{ _id: Types.ObjectId; vehicleType?: string; updatedAt: Date }[]>(),
+      ClassifiedAd.find({ status: "active", expiresAt: { $gt: new Date() } }).select("vehicleType updatedAt").limit(5000).lean<{ _id: Types.ObjectId; vehicleType: string; updatedAt: Date }[]>(),
+      InventoryItem.find({ "shop.published": true, salePrice: { $gt: 0 } }).select("shop.slug updatedAt").limit(5000).lean<{ shop: { slug: string }; updatedAt: Date }[]>(),
+    ]);
+    return {
+      listings: [...vehicles, ...ads].map((v) => ({ path: `/${v.vehicleType === "bike" ? "bikes" : "cars"}/${v._id}`, updatedAt: v.updatedAt })),
+      products: products.map((p) => ({ path: `/shop/${p.shop.slug}`, updatedAt: p.updatedAt })),
+    };
+  },
+
   async listing(id: string, countView = true) {
     await dbConnect();
     if (!Types.ObjectId.isValid(id)) throw new ServiceError("NOT_FOUND", "Listing not found", 404);

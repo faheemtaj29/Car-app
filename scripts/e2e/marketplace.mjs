@@ -21,9 +21,11 @@ function check(name, ok, detail = "") {
 }
 
 class Client {
-  constructor(name) { this.name = name; this.cookies = {}; }
+  /** `ip` simulates a distinct visitor for the per-IP rate limiter (sent as X-Real-IP). */
+  constructor(name, ip) { this.name = name; this.cookies = {}; this.ip = ip; }
   async req(method, path, body, { form, raw } = {}) {
     const headers = { cookie: Object.entries(this.cookies).map(([k, v]) => `${k}=${v}`).join("; ") };
+    if (this.ip) headers["x-real-ip"] = this.ip;
     let payload;
     if (form) payload = form;
     else if (body !== undefined) { headers["content-type"] = "application/json"; payload = JSON.stringify(body); }
@@ -138,6 +140,42 @@ r = await staff.req("POST", `/api/shop/orders/${o2._id}`, { action: "cancel", re
 check("cancel confirmed order (admin) voids voucher", r.data.order?.status === "cancelled", r.data.error);
 check("stock restored to 3 after cancel", (await stock()) === 3, `qty=${await stock()}`);
 
+// ---------- coupons
+r = await staff.req("POST", "/api/shop/coupons", { code: "eid10", description: "Eid sale", kind: "percent", value: 10, minSubtotal: 5000, maxDiscount: 1000, usageLimit: 1, perPhoneLimit: 1, active: true });
+check("admin creates coupon (code upper-cased)", r.status === 201 && r.data.coupon?.code === "EID10", r.data.error);
+r = await staff.req("POST", "/api/shop/coupons", { code: "BAD", kind: "percent", value: 150 });
+check("coupon over 100% refused", r.status === 400, r.data.error);
+const cBuyer = new Client("coupon-buyer", "10.0.0.21");
+await staff.req("POST", "/api/shop/coupons", { code: "BIG50", kind: "fixed", value: 500, minSubtotal: 50000, active: true });
+r = await cBuyer.req("POST", "/api/site/shop/quote", { items: [{ productId: oilId, qty: 1 }], couponCode: "big50" });
+check("coupon below minimum is explained", /Add PKR 43,500 more/.test(r.data.coupon?.error || "") && r.data.quote?.discount === 0, r.data.coupon?.error);
+r = await cBuyer.req("POST", "/api/site/shop/quote", { items: [{ productId: oilId, qty: 2 }], couponCode: "nope" });
+check("unknown coupon rejected", /not valid/.test(r.data.coupon?.error || ""), r.data.coupon?.error);
+r = await cBuyer.req("POST", "/api/site/shop/quote", { items: [{ productId: oilId, qty: 2 }], couponCode: "eid10" });
+check("coupon: 10% of 13,000 capped at 1,000; 12,000 + 250 delivery", r.data.quote?.discount === 1000 && r.data.quote?.total === 12250, JSON.stringify(r.data.quote));
+const couponOrder = await cBuyer.req("POST", "/api/site/shop/checkout", { ...order, phone: "03007770001", items: [{ productId: oilId, qty: 2 }], couponCode: "EID10", expectedTotal: 12250 });
+check("checkout with coupon", couponOrder.status === 201 && couponOrder.data.total === 12250, couponOrder.data.error || couponOrder.data.total);
+const cBuyer2 = new Client("coupon-buyer-2", "10.0.0.22");
+r = await cBuyer2.req("POST", "/api/site/shop/checkout", { ...order, phone: "03007770002", items: [{ productId: oilId, qty: 1 }, { productId: helmetId, qty: 1 }], couponCode: "EID10", expectedTotal: 14750 });
+check("usage limit 1: second customer refused", r.status === 400 && /fully used/.test(r.data.error || ""), r.data.error);
+ov = await staff.req("GET", "/api/shop?status=pending");
+const cOrder = ov.data.orders?.find((o) => o.number === couponOrder.data.number);
+r = await staff.req("POST", `/api/shop/orders/${cOrder?._id}`, { action: "confirm" });
+check("confirm coupon order (voucher net of discount)", r.status === 200 && r.data.order?.discount === 1000, r.data.error);
+r = await staff.req("POST", `/api/shop/orders/${cOrder?._id}`, { action: "cancel", reason: "Customer cancelled" });
+check("cancel coupon order", r.data.order?.status === "cancelled", r.data.error);
+r = await staff.req("GET", "/api/shop/coupons");
+check("cancel gives the coupon use back", r.data.coupons?.find((c) => c.code === "EID10")?.usedCount === 0, JSON.stringify(r.data.coupons?.map((c) => c.usedCount)));
+check("stock restored after coupon order cancel", (await stock()) === 3, `qty=${await stock()}`);
+
+// ---------- CSV export
+let csv = await staff.req("GET", "/api/export/orders", undefined, { raw: true });
+let csvText = await csv.text();
+check("orders CSV download", csv.status === 200 && /text\/csv/.test(csv.headers.get("content-type") || "") && csvText.includes("Order,Date,Status"), `${csv.status} ${csv.headers.get("content-type")}`);
+check("orders CSV contains coupon order", csvText.includes(couponOrder.data.number) && csvText.includes("EID10"));
+csv = await new Client("anon-csv").req("GET", "/api/export/orders", undefined, { raw: true });
+check("anonymous cannot export", csv.status === 401, String(csv.status));
+
 // ---------- members + classifieds
 r = await seller.req("POST", "/api/site/member/register", { name: "Bilal Ahmed", phone: "0333-5556666", password: "short" });
 check("register: password min 8", r.status === 400, r.data.error);
@@ -219,6 +257,27 @@ check("seller marks sold", r.data.ad?.status === "sold");
 r = await buyer.req("GET", "/api/site/cars?type=bike&seller=private");
 check("sold ad leaves public search", r.data.total === 0, `total=${r.data.total}`);
 
+// ---------- batch lookup (saved / compare)
+r = await buyer.req("GET", `/api/site/cars/batch?ids=${corollaId},${adId},000000000000000000000000,not-an-id`);
+check("batch lookup returns the live Corolla only (sold ad + junk skipped)", r.data.listings?.length === 1 && r.data.listings[0]._id === corollaId, JSON.stringify(r.data.listings?.map((l) => l.title)));
+const st = (await staff.req("GET", "/api/settings")).data.settings;
+r = await staff.req("PUT", "/api/settings", { ...st, whatsapp: "0300-5551234" });
+check("admin sets business WhatsApp", r.status === 200, r.data.error);
+const html = await (await buyer.req("GET", `/cars/${corollaId}`, undefined, { raw: true })).text();
+check("detail page has WhatsApp link to the business", html.includes("https://wa.me/923005551234?text="));
+check("detail page has schema.org Car data", html.includes('"@type":"Car"') && html.includes('"priceCurrency":"PKR"'));
+
+// ---------- race: two deals grab the same car at the same instant
+r = await staff.req("POST", "/api/dealership/vehicles", { make: "Honda", model: "Civic", year: 2021, mileage: 30000, condition: "used", status: "in_stock", purchaseCost: 6000000, listPrice: 6900000, floorPrice: 0, published: false, photos: [], features: [] });
+const civicId = r.data.vehicle?._id;
+const raceCust = await staff.req("POST", "/api/dealership/customers", { name: "Race Buyer", phone: "03110000001", source: "walk_in", stage: "new" });
+const raceCust2 = await staff.req("POST", "/api/dealership/customers", { name: "Race Buyer Two", phone: "03110000002", source: "walk_in", stage: "new" });
+const race = await Promise.all([raceCust, raceCust2].map((c) =>
+  staff.req("POST", "/api/dealership/deals", { customerId: c.data.customer?._id, vehicleId: civicId, salePrice: 6900000, reserve: true })
+));
+const winners = race.filter((x) => x.status === 201).length;
+check("two simultaneous reservations: exactly one wins", winners === 1, race.map((x) => `${x.status} ${x.data.error || ""}`).join(" | "));
+
 // ---------- full vehicle sale → accounting must balance
 const cust = await staff.req("POST", "/api/dealership/customers", { name: "Kamran Ali", phone: "03219876543", source: "walk_in", stage: "new", wantsFinancing: true });
 check("create dealership customer", cust.status === 201, cust.data.error);
@@ -242,7 +301,7 @@ check("trial balance balances", tb.status === 200 && tb.data.totalDebit === tb.d
 check("Vehicle Sales = 5,120,000", row("41010101").credit === 5120000, JSON.stringify(row("41010101")));
 check("Cost of Vehicles Sold = 4,500,000", row("52010102").debit === 4500000, JSON.stringify(row("52010102")));
 check("Customer Deposits cleared to 0", !row("21040101").debit && !row("21040101").credit, JSON.stringify(row("21040101")));
-check("Vehicle Inventory = 300,000 (only the unsold bike)", row("11040101").debit === 300000, JSON.stringify(row("11040101")));
+check("Vehicle Inventory = 6,300,000 (unsold bike + Civic)", row("11040101").debit === 6300000, JSON.stringify(row("11040101")));
 
 // login lockout
 const lock = new Client("lock");
@@ -251,12 +310,19 @@ r = await lock.req("POST", "/api/site/member/login", { phone: "0333-5556666", pa
 check("account locks after 5 wrong passwords", r.status === 403, r.data.error);
 
 // pages render (server components hit the DB)
-const STAFF_PAGES = ["/ecommerce", "/dashboard", "/dealership?tab=classifieds", "/accounting", "/inventory", "/settings"];
-for (const path of ["/", "/cars", "/bikes", "/shop", `/shop/${oilSlug}`, "/shop/cart", "/shop/track", "/post-ad", "/account", "/sell-car", "/login", ...STAFF_PAGES]) {
+const STAFF_PAGES = ["/ecommerce", "/ecommerce?tab=coupons", "/dashboard", "/dealership?tab=classifieds", "/accounting", "/inventory", "/settings"];
+for (const path of ["/", "/cars", "/bikes", "/shop", `/shop/${oilSlug}`, "/shop/cart", "/shop/track", "/post-ad", "/account", "/sell-car", "/login", "/saved", `/compare?ids=${corollaId},${civicId}`, ...STAFF_PAGES]) {
   const c = STAFF_PAGES.includes(path) ? staff : buyer;
   const res = await c.req("GET", path, undefined, { raw: true });
   check(`page ${path} renders`, res.status === 200, String(res.status));
 }
+const sm = await buyer.req("GET", "/sitemap.xml", undefined, { raw: true });
+const smText = await sm.text();
+check("sitemap lists products & live vehicles, not sold ones", sm.status === 200 && smText.includes(`/shop/${oilSlug}`) && smText.includes("/bikes/") && !smText.includes(`/cars/${corollaId}`), String(sm.status));
+const rb = await (await buyer.req("GET", "/robots.txt", undefined, { raw: true })).text();
+check("robots.txt hides the back office", /Disallow: \/dashboard/.test(rb) && /Sitemap:/.test(rb));
+const pd = await (await buyer.req("GET", `/shop/${oilSlug}`, undefined, { raw: true })).text();
+check("product page has schema.org Product data", pd.includes('"@type":"Product"'));
 const staffPublic = await staff.req("GET", "/cars", undefined, { raw: true });
 check("signed-in staff can view /cars", staffPublic.status === 200, String(staffPublic.status));
 const anonAdmin = await buyer.req("GET", "/accounting", undefined, { raw: true });

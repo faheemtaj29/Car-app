@@ -16,7 +16,7 @@ type Product = { _id: string; sku: string; name: string; category: string; unit:
 type Order = {
   _id: string; number: string; status: string; customerName: string; phone: string; email?: string; address: string; city: string; notes?: string;
   lines: { itemId: string; sku: string; title: string; qty: number; unitPrice: number; lineTotal: number }[];
-  subtotal: number; deliveryFee: number; total: number; paymentMethod: string; paymentStatus: string; paymentReference?: string;
+  subtotal: number; couponCode?: string; discount?: number; deliveryFee: number; total: number; paymentMethod: string; paymentStatus: string; paymentReference?: string;
   branchCode: string; stockVoucherNumber?: string; courier?: string; trackingNumber?: string; cancelReason?: string;
   events: { status: string; note?: string; at: string; byName?: string }[]; createdAt: string;
 };
@@ -26,7 +26,7 @@ type Settings = {
 };
 type Overview = { settings: Settings; orders: Order[]; counts: Record<string, number>; mtd: { orders: number; revenue: number }; products: Product[] };
 
-const TABS = [["orders", "Orders"], ["products", "Products"], ["settings", "Settings"]] as const;
+const TABS = [["orders", "Orders"], ["products", "Products"], ["coupons", "Coupons"], ["settings", "Settings"]] as const;
 type Tab = (typeof TABS)[number][0];
 
 export default function EcommercePage() {
@@ -98,6 +98,7 @@ export default function EcommercePage() {
               ))}
             </div>
             <input className={inputClass} placeholder="Search order no, name, phone, city…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <a className="link-btn" href={`/api/export/orders${status ? `?status=${status}` : ""}`}>Export CSV</a>
           </div>
           <Panel>
             {data.orders.length ? (
@@ -125,6 +126,7 @@ export default function EcommercePage() {
       ) : null}
 
       {data && tab === "products" ? <ProductsTab products={data.products} branch={data.settings.fulfilmentBranch} onChanged={load} /> : null}
+      {data && tab === "coupons" ? <CouponsTab isAdmin={role === "admin"} /> : null}
       {data && tab === "settings" ? <SettingsTab settings={data.settings} isAdmin={role === "admin"} onSaved={load} /> : null}
     </>
   );
@@ -172,6 +174,7 @@ function OrderSheet({ order, isAdmin, onClose, onChanged }: { order: Order | nul
               {order.lines.map((l) => (
                 <div key={l.itemId}><span>{l.qty} × {l.title} <span className="muted small">{l.sku}</span></span><b>{pkr(l.lineTotal)}</b></div>
               ))}
+              {order.discount ? <div><span>Coupon {order.couponCode}</span><b>− {pkr(order.discount)}</b></div> : null}
               <div><span>Delivery</span><b>{order.deliveryFee ? pkr(order.deliveryFee) : "Free"}</b></div>
               <div className="total"><span>Total</span><b>{pkr(order.total)}</b></div>
             </div>
@@ -420,5 +423,121 @@ function SettingsTab({ settings, isAdmin, onSaved }: { settings: Settings; isAdm
         </fieldset>
       </form>
     </Panel>
+  );
+}
+
+type Coupon = {
+  _id: string; code: string; description?: string; kind: "percent" | "fixed"; value: number; minSubtotal: number;
+  maxDiscount: number; startsAt?: string; endsAt?: string; usageLimit: number; usedCount: number; perPhoneLimit: number; active: boolean;
+};
+
+const blankCoupon = { code: "", description: "", kind: "percent" as "percent" | "fixed", value: "10", minSubtotal: "0", maxDiscount: "0", startsAt: "", endsAt: "", usageLimit: "0", perPhoneLimit: "1", active: true };
+
+function CouponsTab({ isAdmin }: { isAdmin: boolean }) {
+  const [rows, setRows] = useState<Coupon[] | null>(null);
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Coupon | null>(null);
+  const [f, setF] = useState(blankCoupon);
+  const [err, setErr] = useState("");
+
+  const load = useCallback(async () => {
+    try {
+      setRows((await api<{ coupons: Coupon[] }>("/api/shop/coupons")).coupons);
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+  }, [load]);
+
+  function edit(c: Coupon | null) {
+    setErr("");
+    setEditing(c);
+    setF(c ? {
+      code: c.code, description: c.description || "", kind: c.kind, value: String(c.value), minSubtotal: String(c.minSubtotal),
+      maxDiscount: String(c.maxDiscount), startsAt: c.startsAt ? c.startsAt.slice(0, 10) : "", endsAt: c.endsAt ? c.endsAt.slice(0, 10) : "",
+      usageLimit: String(c.usageLimit), perPhoneLimit: String(c.perPhoneLimit), active: c.active,
+    } : blankCoupon);
+    setOpen(true);
+  }
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    try {
+      await api(editing ? `/api/shop/coupons/${editing._id}` : "/api/shop/coupons", { method: editing ? "PUT" : "POST", json: f });
+      setOpen(false);
+      load();
+    } catch (er) {
+      setErr((er as Error).message);
+    }
+  }
+
+  async function toggle(c: Coupon) {
+    try {
+      await api(`/api/shop/coupons/${c._id}`, {
+        method: "PUT",
+        json: { ...c, startsAt: c.startsAt?.slice(0, 10) || "", endsAt: c.endsAt?.slice(0, 10) || "", active: !c.active },
+      });
+      load();
+    } catch (er) {
+      setErr((er as Error).message);
+    }
+  }
+
+  const describe = (c: Coupon) =>
+    `${c.kind === "percent" ? `${c.value}% off` : `${pkr(c.value)} off`}${c.minSubtotal ? ` orders over ${pkr(c.minSubtotal)}` : ""}${c.kind === "percent" && c.maxDiscount ? ` (max ${pkr(c.maxDiscount)})` : ""}`;
+
+  return (
+    <>
+      {err && !open ? <div className="alert err">{err}</div> : null}
+      <Panel title="Discount coupons" meta="CUSTOMERS ENTER THE CODE IN THE CART">
+        {!rows ? <EmptyState message="Loading…" /> : !rows.length ? <EmptyState message="No coupons yet." /> : (
+          <div className="table-scroll">
+            <table className="reg">
+              <thead><tr><th>Code</th><th>Offer</th><th>Valid</th><th className="right">Used</th><th>Status</th><th /></tr></thead>
+              <tbody>
+                {rows.map((c) => (
+                  <tr key={c._id}>
+                    <td><b>{c.code}</b><div className="muted small">{c.description || ""}</div></td>
+                    <td>{describe(c)}</td>
+                    <td>{c.startsAt || c.endsAt ? `${c.startsAt ? prettyDate(c.startsAt) : "now"} → ${c.endsAt ? prettyDate(c.endsAt) : "open"}` : "Always"}</td>
+                    <td className="num">{c.usedCount}{c.usageLimit ? ` / ${c.usageLimit}` : ""}</td>
+                    <td><span className={`badge ${c.active ? "present" : ""}`}>{c.active ? "active" : "paused"}</span></td>
+                    <td className="right">
+                      {isAdmin ? <button type="button" className="link-btn" onClick={() => edit(c)}>Edit</button> : null}
+                      {isAdmin ? <button type="button" className="link-btn" onClick={() => toggle(c)}>{c.active ? "Pause" : "Activate"}</button> : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {isAdmin ? <button type="button" className="btn-primary" style={{ marginTop: 12 }} onClick={() => edit(null)}>+ New coupon</button> : <div className="muted small">Only an admin can create coupons.</div>}
+      </Panel>
+      <ModalForm open={open} title={editing ? `Edit ${editing.code}` : "New coupon"} onClose={() => setOpen(false)} onSubmit={save} submitLabel="Save coupon">
+        {err ? <div className="alert err">{err}</div> : null}
+        <div className="form-grid three">
+          <Field label="Code" required><input className={inputClass} value={f.code} onChange={(e) => setF({ ...f, code: e.target.value.toUpperCase() })} required placeholder="EID10" /></Field>
+          <Field label="Type">
+            <select className={inputClass} value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value as "percent" | "fixed" })}>
+              <option value="percent">% off</option>
+              <option value="fixed">Fixed PKR off</option>
+            </select>
+          </Field>
+          <Field label={f.kind === "percent" ? "Percent" : "Amount (PKR)"} required><input className={inputClass} type="number" min={1} value={f.value} onChange={(e) => setF({ ...f, value: e.target.value })} required /></Field>
+          <Field label="Minimum order (PKR)"><input className={inputClass} type="number" min={0} value={f.minSubtotal} onChange={(e) => setF({ ...f, minSubtotal: e.target.value })} /></Field>
+          {f.kind === "percent" ? <Field label="Max discount (0 = no cap)"><input className={inputClass} type="number" min={0} value={f.maxDiscount} onChange={(e) => setF({ ...f, maxDiscount: e.target.value })} /></Field> : <div />}
+          <Field label="Description"><input className={inputClass} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder="Eid sale" /></Field>
+          <Field label="Starts"><input className={inputClass} type="date" value={f.startsAt} onChange={(e) => setF({ ...f, startsAt: e.target.value })} /></Field>
+          <Field label="Ends"><input className={inputClass} type="date" value={f.endsAt} onChange={(e) => setF({ ...f, endsAt: e.target.value })} /></Field>
+          <Field label="Total uses (0 = unlimited)"><input className={inputClass} type="number" min={0} value={f.usageLimit} onChange={(e) => setF({ ...f, usageLimit: e.target.value })} /></Field>
+          <Field label="Uses per customer (0 = unlimited)"><input className={inputClass} type="number" min={0} value={f.perPhoneLimit} onChange={(e) => setF({ ...f, perPhoneLimit: e.target.value })} /></Field>
+        </div>
+        <label className="check-row"><input type="checkbox" checked={f.active} onChange={(e) => setF({ ...f, active: e.target.checked })} /> Active</label>
+      </ModalForm>
+    </>
   );
 }

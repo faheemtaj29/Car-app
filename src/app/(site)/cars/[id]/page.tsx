@@ -4,6 +4,10 @@ import { notFound } from "next/navigation";
 import { EmiCalculator, Gallery, InquiryForm } from "@/components/marketplace/Interactive";
 import { InspectionBadge, InspectionReport, ListingCard, PriceBadge, PriceMeter } from "@/components/marketplace/Listing";
 import { ShowPhone } from "@/components/marketplace/Interactive";
+import { SaveCompareButtons } from "@/components/marketplace/SavedClient";
+import { settingsService } from "@/backend/services/settings.service";
+import { whatsappLink } from "@/lib/shop";
+import { siteUrl } from "@/lib/site";
 import { marketplaceService } from "@/backend/services/marketplace.service";
 import { ServiceError } from "@/backend/types";
 import { formatPKR, formatPKRShort } from "@/lib/dealership";
@@ -39,6 +43,32 @@ export default async function CarPage({ params }: { params: Params }) {
   const isBike = car.vehicleType === "bike";
   const base = isBike ? "/bikes" : "/cars";
   const isPrivate = car.seller.type === "private";
+  const settings = await settingsService.get().catch(() => null);
+  const url = `${siteUrl()}${base}/${car._id}`;
+  const waNumber = isPrivate ? car.seller.phone : settings?.whatsapp || car.branch?.phone || settings?.phone;
+  const wa = whatsappLink(waNumber, `Hi, I'm interested in the ${car.title} listed for ${formatPKR(car.price)}: ${url}`);
+  // schema.org data lets search engines show price and availability.
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": isBike ? "Motorcycle" : "Car",
+    name: car.title,
+    brand: { "@type": "Brand", name: car.make },
+    model: car.model,
+    vehicleModelDate: String(car.year),
+    mileageFromOdometer: { "@type": "QuantitativeValue", value: car.mileage, unitCode: "KMT" },
+    fuelType: car.fuel,
+    color: car.color,
+    image: car.photos.slice(0, 5).map((p) => (p.startsWith("http") ? p : `${siteUrl()}${p}`)),
+    url,
+    offers: {
+      "@type": "Offer",
+      price: car.price,
+      priceCurrency: "PKR",
+      availability: car.status === "reserved" ? "https://schema.org/LimitedAvailability" : "https://schema.org/InStock",
+      itemCondition: car.condition === "new" ? "https://schema.org/NewCondition" : "https://schema.org/UsedCondition",
+      seller: { "@type": isPrivate ? "Person" : "AutoDealer", name: car.seller.name || settings?.businessName },
+    },
+  };
 
   const specs: [string, string | undefined][] = [
     ["Model year", String(car.year)],
@@ -56,6 +86,7 @@ export default async function CarPage({ params }: { params: Params }) {
 
   return (
     <section className="site-section mk-wrap">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       <nav className="mk-crumbs">
         <Link href={base}>{isBike ? "Bikes" : "Cars"}</Link> › <Link href={`${base}?make=${encodeURIComponent(car.make)}`}>{car.make}</Link> ›{" "}
         <Link href={`${base}?make=${encodeURIComponent(car.make)}&model=${encodeURIComponent(car.model)}`}>{car.model}</Link>
@@ -99,6 +130,7 @@ export default async function CarPage({ params }: { params: Params }) {
         <aside className="mk-side">
           <div className="site-card">
             <h1 className="mk-title">{car.title}</h1>
+            <SaveCompareButtons id={car._id} type={car.vehicleType} variant="detail" />
             <div className="mk-price">{formatPKR(car.price)}</div>
             <div className="mk-muted">{formatPKRShort(car.price)}</div>
             <div className="mk-badges" style={{ margin: "10px 0" }}>
@@ -117,6 +149,7 @@ export default async function CarPage({ params }: { params: Params }) {
               {car.seller.memberSince ? <p className="mk-muted">On the site since {new Date(car.seller.memberSince).toLocaleDateString("en-GB", { month: "short", year: "numeric" })}</p> : null}
               {car.negotiable ? <p className="mk-muted">Price is negotiable</p> : null}
               {car.seller.phone ? <ShowPhone phone={car.seller.phone} /> : null}
+              {wa ? <a className="mk-wa" href={wa} target="_blank" rel="noopener noreferrer">WhatsApp the seller</a> : null}
               <InquiryForm listingId={car._id} privateSeller />
               <div className="mk-safety">
                 <b>Stay safe:</b> meet in a public place, inspect the vehicle and documents (registration, CNIC match,
@@ -127,6 +160,7 @@ export default async function CarPage({ params }: { params: Params }) {
             <div className="site-card">
               <h3>Contact the dealer</h3>
               {car.branch ? <p className="mk-muted">{car.branch.name}{car.branch.address ? ` · ${car.branch.address}` : ""}</p> : null}
+              {wa ? <a className="mk-wa" href={wa} target="_blank" rel="noopener noreferrer">Ask on WhatsApp</a> : null}
               <InquiryForm listingId={car._id} phone={car.branch?.phone} />
             </div>
           )}

@@ -3,6 +3,7 @@ import { ReactNode } from "react";
 import { settingsService } from "@/backend/services/settings.service";
 import { marketplaceService } from "@/backend/services/marketplace.service";
 import { CartBadge } from "@/components/marketplace/ShopClient";
+import { CompareTray } from "@/components/marketplace/SavedClient";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ export default async function SiteLayout({ children }: { children: ReactNode }) 
           ))}
         </nav>
         <div className="site-nav-actions">
+          <Link href="/saved" className="mk-saved-link" aria-label="Saved vehicles">♡ Saved</Link>
           {flags.shop ? <CartBadge /> : null}
           <Link href="/account" className="site-btn ghost">My Account</Link>
           {flags.classifieds ? <Link href="/post-ad" className="site-btn">Post an Ad</Link> : null}
@@ -44,6 +46,7 @@ export default async function SiteLayout({ children }: { children: ReactNode }) 
       </header>
 
       <main>{children}</main>
+      <CompareTray />
 
       <footer className="site-footer">
         <div className="site-foot-grid">

@@ -57,7 +57,8 @@ type QuoteLine = {
 };
 type Quote = {
   lines: QuoteLine[];
-  quote: { subtotal: number; delivery: number; total: number; freeOver: number };
+  quote: { subtotal: number; discount: number; delivery: number; total: number; freeOver: number };
+  coupon: { code: string; discount?: number; description?: string; error?: string } | null;
   payment: { cod: boolean; bankTransfer: boolean; bankDetails?: string };
   enabled: boolean;
 };
@@ -69,10 +70,13 @@ export function CartApp() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [placed, setPlaced] = useState<{ number: string; total: number; paymentMethod: string; bankDetails?: string } | null>(null);
+  const [couponInput, setCouponInput] = useState("");
+  // The code actually sent with quotes/checkout; cleared when the server rejects it.
+  const [coupon, setCoupon] = useState("");
 
-  const refresh = useCallback(async (next: CartLine[]) => {
+  const refresh = useCallback(async (next: CartLine[], code = "") => {
     try {
-      const res = await fetch("/api/site/shop/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: next }) });
+      const res = await fetch("/api/site/shop/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: next, couponCode: code || undefined }) });
       const data: Quote = await res.json();
       setQ(data);
       // Drop products that disappeared from the catalogue.
@@ -97,7 +101,7 @@ export function CartApp() {
     const next = qty <= 0 ? lines.filter((l) => l.productId !== productId) : lines.map((l) => (l.productId === productId ? { ...l, qty: Math.min(10, qty) } : l));
     setLines(next);
     writeCart(next);
-    refresh(next);
+    refresh(next, coupon);
   }
 
   async function checkout(e: FormEvent) {
@@ -109,11 +113,11 @@ export function CartApp() {
       const res = await fetch("/api/site/shop/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...f, items: lines, expectedTotal: q.quote.total }),
+        body: JSON.stringify({ ...f, items: lines, couponCode: q.coupon && !q.coupon.error ? q.coupon.code : undefined, expectedTotal: q.quote.total }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        await refresh(lines);
+        await refresh(lines, coupon);
         throw new Error(data.error || "Could not place the order");
       }
       writeCart([]);
@@ -202,6 +206,26 @@ export function CartApp() {
       <aside className="site-card mk-summary">
         <h3>Order summary</h3>
         <div><span>Subtotal</span><b>{formatPKR(q.quote.subtotal)}</b></div>
+        {q.quote.discount ? <div className="mk-discount"><span>Coupon {q.coupon?.code}</span><b>− {formatPKR(q.quote.discount)}</b></div> : null}
+        <form
+          className="mk-coupon"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const code = couponInput.trim().toUpperCase();
+            setCoupon(code);
+            refresh(lines, code);
+          }}
+        >
+          <input value={couponInput} onChange={(e) => setCouponInput(e.target.value)} placeholder="Coupon code" aria-label="Coupon code" maxLength={30} />
+          <button type="submit" className="site-btn ghost" disabled={!couponInput.trim()}>Apply</button>
+        </form>
+        {q.coupon?.error ? <div className="mk-error">{q.coupon.error}</div> : null}
+        {q.coupon && !q.coupon.error ? (
+          <div className="mk-instock">
+            ✓ {q.coupon.code} applied{q.coupon.description ? ` — ${q.coupon.description}` : ""}{" "}
+            <button type="button" className="mk-link" onClick={() => { setCoupon(""); setCouponInput(""); refresh(lines, ""); }}>Remove</button>
+          </div>
+        ) : null}
         <div><span>Delivery</span><b>{q.quote.delivery ? formatPKR(q.quote.delivery) : "Free"}</b></div>
         {toFree > 0 ? <p className="mk-muted">Add {formatPKR(toFree)} more for free delivery.</p> : null}
         <div className="total"><span>Total</span><b>{formatPKR(q.quote.total)}</b></div>
@@ -211,7 +235,7 @@ export function CartApp() {
 }
 
 type Tracked = {
-  number: string; status: string; total: number; subtotal: number; deliveryFee: number; paymentMethod: string; paymentStatus: string;
+  number: string; status: string; total: number; subtotal: number; couponCode?: string; discount?: number; deliveryFee: number; paymentMethod: string; paymentStatus: string;
   courier?: string; trackingNumber?: string; createdAt: string;
   lines: { title: string; qty: number; lineTotal: number }[];
   events: { status: string; at: string; note?: string }[];
@@ -261,6 +285,7 @@ export function TrackOrder({ initialNumber }: { initialNumber?: string }) {
           <ul className="mk-msgs">
             {order.lines.map((l, i) => <li key={i}>{l.qty}× {l.title} — {formatPKR(l.lineTotal)}</li>)}
           </ul>
+          {order.discount ? <p>Coupon {order.couponCode}: − {formatPKR(order.discount)}</p> : null}
           <p>Total <b>{formatPKR(order.total)}</b> · {order.paymentMethod === "cod" ? "Cash on delivery" : "Bank transfer"} · payment {order.paymentStatus}</p>
         </div>
       ) : null}

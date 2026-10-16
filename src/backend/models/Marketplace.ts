@@ -177,6 +177,8 @@ export interface IShopOrder {
   notes?: string;
   lines: IShopOrderLine[];
   subtotal: number;
+  couponCode?: string;
+  discount: number;
   deliveryFee: number;
   total: number;
   paymentMethod: PaymentMethod;
@@ -221,6 +223,8 @@ const ShopOrderSchema = new Schema<IShopOrder>(
     notes: String,
     lines: { type: [ShopOrderLineSchema], required: true },
     subtotal: { type: Number, required: true, min: 0 },
+    couponCode: { type: String, uppercase: true, trim: true },
+    discount: { type: Number, default: 0, min: 0 },
     deliveryFee: { type: Number, default: 0, min: 0 },
     total: { type: Number, required: true, min: 0 },
     paymentMethod: { type: String, enum: PAYMENT_METHODS, default: "cod" },
@@ -246,6 +250,48 @@ ShopOrderSchema.index({ phone: 1, createdAt: -1 });
 ShopOrderSchema.index({ memberId: 1, createdAt: -1 });
 
 export const ShopOrder = models.ShopOrder || model<IShopOrder>("ShopOrder", ShopOrderSchema);
+
+/* ------------------------------------------------------------ coupons */
+
+export interface ICoupon {
+  code: string;
+  description?: string;
+  kind: "percent" | "fixed";
+  value: number;
+  minSubtotal: number;
+  /** Cap for percent coupons (0 = no cap). */
+  maxDiscount: number;
+  startsAt?: Date;
+  endsAt?: Date;
+  /** Total redemptions allowed (0 = unlimited). */
+  usageLimit: number;
+  usedCount: number;
+  /** Redemptions per mobile number (0 = unlimited). */
+  perPhoneLimit: number;
+  active: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const CouponSchema = new Schema<ICoupon>(
+  {
+    code: { type: String, required: true, unique: true, uppercase: true, trim: true },
+    description: String,
+    kind: { type: String, enum: ["percent", "fixed"], required: true },
+    value: { type: Number, required: true, min: 0 },
+    minSubtotal: { type: Number, default: 0, min: 0 },
+    maxDiscount: { type: Number, default: 0, min: 0 },
+    startsAt: Date,
+    endsAt: Date,
+    usageLimit: { type: Number, default: 0, min: 0 },
+    usedCount: { type: Number, default: 0, min: 0 },
+    perPhoneLimit: { type: Number, default: 1, min: 0 },
+    active: { type: Boolean, default: true },
+  },
+  { timestamps: true }
+);
+
+export const Coupon = models.Coupon || model<ICoupon>("Coupon", CouponSchema);
 
 /* ------------------------------------------------------ shop settings */
 

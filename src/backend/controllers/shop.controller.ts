@@ -12,6 +12,7 @@ import {
   adModerationSchema,
   checkoutSchema,
   classifiedAdSchema,
+  couponSchema,
   memberAdActionSchema,
   memberLoginSchema,
   memberRegisterSchema,
@@ -170,7 +171,8 @@ export const shopPublicController = {
       const items = Array.isArray(body?.items) ? body.items : [];
       return jsonOk(
         await shopService.quoteCart(
-          items.map((i: { productId?: unknown; qty?: unknown }) => ({ productId: String(i.productId || ""), qty: Number(i.qty) || 1 }))
+          items.map((i: { productId?: unknown; qty?: unknown }) => ({ productId: String(i.productId || ""), qty: Number(i.qty) || 1 })),
+          typeof body?.couponCode === "string" ? body.couponCode.slice(0, 30) : undefined
         )
       );
     } catch (e) {
@@ -248,6 +250,29 @@ export const shopAdminController = {
       const parsed = shopSettingsSchema.safeParse(await req.json());
       if (!parsed.success) return jsonError(firstZodError(parsed.error.issues));
       return jsonOk({ settings: await shopService.updateSettings(parsed.data) });
+    } catch (e) {
+      return fromServiceError(e);
+    }
+  },
+
+  async coupons() {
+    const { error } = await requireAuth([...DESK]);
+    if (error) return error;
+    try {
+      return jsonOk({ coupons: await shopService.coupons() });
+    } catch (e) {
+      return fromServiceError(e);
+    }
+  },
+
+  async saveCoupon(req: Request, ctx?: Ctx) {
+    const { error } = await requireAuth(["admin"]);
+    if (error) return error;
+    try {
+      const id = ctx ? (await ctx.params).id : null;
+      const parsed = couponSchema.safeParse(await req.json());
+      if (!parsed.success) return jsonError(firstZodError(parsed.error.issues));
+      return jsonOk({ coupon: await shopService.saveCoupon(id, parsed.data) }, id ? 200 : 201);
     } catch (e) {
       return fromServiceError(e);
     }

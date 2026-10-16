@@ -7,16 +7,17 @@ import type { z } from "zod";
 import { Types } from "mongoose";
 import { dbConnect } from "@/backend/config/database";
 import { InventoryItem, type IInventoryItem } from "@/backend/models/Inventory";
-import { ShopOrder, ShopSettings, type IShopOrder } from "@/backend/models/Marketplace";
+import { Coupon, ShopOrder, ShopSettings, type ICoupon, type IShopOrder } from "@/backend/models/Marketplace";
 import { AccountingCounter } from "@/backend/models/Accounting";
 import { inventoryService } from "@/backend/services/inventory.service";
 import { accountingService } from "@/backend/services/accounting.service";
 import { shopSettings } from "@/backend/services/classified.service";
 import { ServiceError, type SessionUser } from "@/backend/types";
 import type { MemberSession } from "@/backend/lib/memberSession";
-import { CART_LIMITS, quoteDelivery, slugify } from "@/lib/shop";
+import { CART_LIMITS, couponDiscount, quoteDelivery, slugify } from "@/lib/shop";
 import type {
   checkoutSchema,
+  couponSchema,
   orderActionSchema,
   shopListingSchema,
   shopSettingsSchema,
@@ -87,6 +88,26 @@ async function nextOrderNumber() {
   return `SO-${year}-${String(c.seq).padStart(5, "0")}`;
 }
 
+type CouponCheck = { coupon: Doc<ICoupon>; discount: number } | { error: string };
+
+/** Is `code` usable for this subtotal (and this phone, when known)? */
+async function evaluateCoupon(code: string, subtotal: number, phone?: string): Promise<CouponCheck> {
+  const coupon = await Coupon.findOne({ code: code.trim().toUpperCase() }).lean<Doc<ICoupon>>();
+  const now = new Date();
+  if (!coupon || !coupon.active) return { error: "This coupon code is not valid" };
+  if (coupon.startsAt && coupon.startsAt > now) return { error: "This coupon is not active yet" };
+  if (coupon.endsAt && coupon.endsAt < now) return { error: "This coupon has expired" };
+  if (coupon.usageLimit > 0 && coupon.usedCount >= coupon.usageLimit) return { error: "This coupon has been fully used" };
+  if (subtotal < coupon.minSubtotal) {
+    return { error: `Add PKR ${(coupon.minSubtotal - subtotal).toLocaleString()} more to use this coupon` };
+  }
+  if (phone && coupon.perPhoneLimit > 0) {
+    const used = await ShopOrder.countDocuments({ couponCode: coupon.code, phone, status: { $ne: "cancelled" } });
+    if (used >= coupon.perPhoneLimit) return { error: "You have already used this coupon" };
+  }
+  return { coupon, discount: couponDiscount(coupon, subtotal) };
+}
+
 function event(order: { events: IShopOrder["events"] }, status: IShopOrder["events"][number]["status"], note?: string, by?: string) {
   order.events.push({ status, note, at: new Date(), byName: by });
 }
@@ -152,7 +173,7 @@ export const shopService = {
   },
 
   /** Public price/stock refresh for the cart page (cart lives in the browser). */
-  async quoteCart(items: { productId: string; qty: number }[]) {
+  async quoteCart(items: { productId: string; qty: number }[], couponCode?: string) {
     await dbConnect();
     const settings = await shopSettings();
     const branch = settings.fulfilmentBranch.toUpperCase();
@@ -169,9 +190,13 @@ export const shopService = {
       })
       .filter(Boolean) as { product: PublicProduct; qty: number; lineTotal: number; problem: string | null }[];
     const subtotal = round(lines.reduce((s, l) => s + l.lineTotal, 0));
+    const check = couponCode?.trim() ? await evaluateCoupon(couponCode, subtotal) : null;
+    const discount = check && "discount" in check ? check.discount : 0;
+    const delivery = quoteDelivery(round(subtotal - discount), settings.deliveryFee, settings.freeDeliveryOver);
     return {
       lines,
-      quote: quoteDelivery(subtotal, settings.deliveryFee, settings.freeDeliveryOver),
+      quote: { ...delivery, subtotal, discount, total: round(subtotal - discount + delivery.delivery) },
+      coupon: check ? ("error" in check ? { code: couponCode!.trim().toUpperCase(), error: check.error } : { code: check.coupon.code, discount, description: check.coupon.description }) : null,
       payment: { cod: settings.codEnabled, bankTransfer: settings.bankTransferEnabled, bankDetails: settings.bankTransferEnabled ? settings.bankDetails : undefined },
       enabled: settings.enabled,
     };
@@ -208,11 +233,32 @@ export const shopService = {
       };
     });
     const subtotal = round(lines.reduce((s, l) => s + l.lineTotal, 0));
-    const quote = quoteDelivery(subtotal, settings.deliveryFee, settings.freeDeliveryOver);
+    let discount = 0;
+    let claimed: Doc<ICoupon> | null = null;
+    if (data.couponCode?.trim()) {
+      const check = await evaluateCoupon(data.couponCode, subtotal, data.phone);
+      if ("error" in check) throw new ServiceError("VALIDATION", check.error, 400);
+      // Claim one use atomically: the filter fails once the limit is reached.
+      claimed = await Coupon.findOneAndUpdate(
+        { _id: check.coupon._id, active: true, $or: [{ usageLimit: 0 }, { usedCount: { $lt: check.coupon.usageLimit } }] },
+        { $inc: { usedCount: 1 } },
+        { new: true }
+      ).lean<Doc<ICoupon>>();
+      if (!claimed) throw new ServiceError("CONFLICT", "This coupon has just been fully used", 409);
+      discount = check.discount;
+    }
+    const release = async () => {
+      if (claimed) await Coupon.updateOne({ _id: claimed._id, usedCount: { $gt: 0 } }, { $inc: { usedCount: -1 } });
+    };
+    const delivery = quoteDelivery(round(subtotal - discount), settings.deliveryFee, settings.freeDeliveryOver);
+    const quote = { ...delivery, total: round(subtotal - discount + delivery.delivery) };
     if (Math.abs(quote.total - data.expectedTotal) > 0.5) {
+      await release();
       throw new ServiceError("CONFLICT", `Prices changed since you opened your cart. New total: PKR ${quote.total.toLocaleString()}. Please review and place the order again.`, 409);
     }
-    const order = await ShopOrder.create({
+    let order;
+    try {
+      order = await ShopOrder.create({
       number: await nextOrderNumber(),
       status: "pending",
       memberId: member?.id,
@@ -224,12 +270,18 @@ export const shopService = {
       notes: data.notes,
       lines,
       subtotal,
+      couponCode: claimed?.code,
+      discount,
       deliveryFee: quote.delivery,
       total: quote.total,
       paymentMethod: data.paymentMethod,
       branchCode: branch,
-      events: [{ status: "pending", note: "Order placed on website", at: new Date(), byName: "Website" }],
-    });
+      events: [{ status: "pending", note: claimed ? `Order placed on website · coupon ${claimed.code}` : "Order placed on website", at: new Date(), byName: "Website" }],
+      });
+    } catch (e) {
+      await release();
+      throw e;
+    }
     return {
       number: order.number,
       total: order.total,
@@ -241,7 +293,7 @@ export const shopService = {
   async track(data: z.infer<typeof trackOrderSchema>) {
     await dbConnect();
     const order = await ShopOrder.findOne({ number: data.number.toUpperCase(), phone: data.phone })
-      .select("number status lines subtotal deliveryFee total paymentMethod paymentStatus courier trackingNumber events.status events.at events.note createdAt city")
+      .select("number status lines subtotal couponCode discount deliveryFee total paymentMethod paymentStatus courier trackingNumber events.status events.at events.note createdAt city")
       .lean();
     // Same answer whether the number or the phone is wrong.
     if (!order) throw new ServiceError("NOT_FOUND", "No order matches that number and mobile", 404);
@@ -308,6 +360,28 @@ export const shopService = {
     return item.shop;
   },
 
+  async coupons() {
+    await dbConnect();
+    return Coupon.find().sort({ active: -1, createdAt: -1 }).lean();
+  },
+
+  async saveCoupon(id: string | null, data: z.infer<typeof couponSchema>) {
+    await dbConnect();
+    const payload = {
+      ...data,
+      code: data.code.toUpperCase(),
+      startsAt: data.startsAt ? new Date(data.startsAt) : undefined,
+      endsAt: data.endsAt ? new Date(data.endsAt) : undefined,
+    };
+    if (payload.startsAt && payload.endsAt && payload.endsAt < payload.startsAt) {
+      throw new ServiceError("VALIDATION", "End date is before the start date", 400);
+    }
+    if (!id) return Coupon.create(payload);
+    const updated = await Coupon.findByIdAndUpdate(id, { $set: payload }, { new: true });
+    if (!updated) throw new ServiceError("NOT_FOUND", "Coupon not found", 404);
+    return updated;
+  },
+
   async updateSettings(data: z.infer<typeof shopSettingsSchema>) {
     await dbConnect();
     return ShopSettings.findOneAndUpdate({ key: "default" }, { $set: { ...data, fulfilmentBranch: data.fulfilmentBranch.toUpperCase() } }, { upsert: true, new: true }).lean();
@@ -339,7 +413,7 @@ export const shopService = {
             partyName: `${order.customerName} (${order.phone})`,
             reference: order.number,
             narration: `Web order ${order.number}`,
-            discountAmount: 0,
+            discountAmount: order.discount || 0,
             taxAmount: 0,
             items: order.lines.map((l: { itemId: Types.ObjectId; qty: number; unitPrice: number }) => ({
               itemId: String(l.itemId),
@@ -402,6 +476,9 @@ export const shopService = {
           await inventoryService.voidVoucher(String(order.stockVoucherId), `Web order ${order.number} cancelled: ${input.reason}`, actor);
           await accountingService.removeBySource("inventory", `shopfee:${order._id}`);
         }
+        if (order.couponCode) {
+          await Coupon.updateOne({ code: order.couponCode, usedCount: { $gt: 0 } }, { $inc: { usedCount: -1 } });
+        }
         order.status = "cancelled";
         order.cancelReason = input.reason;
         if (order.paymentStatus === "paid") order.paymentStatus = "refunded";
@@ -418,7 +495,7 @@ export const shopService = {
             partyName: `${order.customerName} (${order.phone})`,
             reference: order.number,
             narration: `Return of web order ${order.number}: ${input.reason}`,
-            discountAmount: 0,
+            discountAmount: order.discount || 0,
             taxAmount: 0,
             items: order.lines.map((l: { itemId: Types.ObjectId; qty: number; unitPrice: number }) => ({
               itemId: String(l.itemId),

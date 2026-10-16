@@ -619,16 +619,25 @@ async function assertPriceAllowed(vehicle: IVehicle, salePrice: number, discount
 }
 
 /** Reserve the unit for this deal, refusing if another live deal holds it. */
+/**
+ * Reserve the unit for this deal in ONE conditional update, so two deals
+ * racing for the same car cannot both win (no read-then-save gap).
+ */
 async function reserveVehicle(deal: Doc<IDealerDeal>) {
-  const vehicle = await Vehicle.findById(deal.vehicleId);
+  const won = await Vehicle.findOneAndUpdate(
+    {
+      _id: deal.vehicleId,
+      status: { $ne: "sold" },
+      $or: [{ status: { $ne: "reserved" } }, { dealId: deal._id }],
+    },
+    { $set: { status: "reserved", dealId: deal._id } },
+    { new: true }
+  );
+  if (won) return;
+  const vehicle = await Vehicle.findById(deal.vehicleId).select("stockNo status").lean<{ stockNo: string; status: string }>();
   if (!vehicle) throw new ServiceError("NOT_FOUND", "Vehicle no longer exists", 404);
   if (vehicle.status === "sold") throw new ServiceError("CONFLICT", `${vehicle.stockNo} is already sold`, 409);
-  if (vehicle.status === "reserved" && String(vehicle.dealId) !== String(deal._id)) {
-    throw new ServiceError("CONFLICT", `${vehicle.stockNo} is reserved on another deal`, 409);
-  }
-  vehicle.status = "reserved";
-  vehicle.dealId = deal._id;
-  await vehicle.save();
+  throw new ServiceError("CONFLICT", `${vehicle.stockNo} is reserved on another deal`, 409);
 }
 
 async function releaseVehicle(deal: Doc<IDealerDeal>) {

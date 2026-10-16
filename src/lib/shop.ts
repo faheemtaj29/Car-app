@@ -65,3 +65,39 @@ export function normalizePhone(phone: string) {
   if (digits.startsWith("0092")) return `0${digits.slice(4)}`;
   return digits;
 }
+
+export type CouponRule = {
+  kind: "percent" | "fixed";
+  value: number;
+  minSubtotal: number;
+  maxDiscount: number;
+};
+
+/** Discount a coupon gives on `subtotal` (never more than the subtotal itself). */
+export function couponDiscount(rule: CouponRule, subtotal: number) {
+  if (subtotal <= 0 || subtotal < rule.minSubtotal) return 0;
+  let d = rule.kind === "percent" ? (subtotal * rule.value) / 100 : rule.value;
+  if (rule.kind === "percent" && rule.maxDiscount > 0) d = Math.min(d, rule.maxDiscount);
+  return Math.round(Math.min(d, subtotal) * 100) / 100;
+}
+
+/** wa.me link for a Pakistani or international number with a prefilled message. */
+export function whatsappLink(phone: string | undefined | null, text: string) {
+  if (!phone) return null;
+  let digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("0092")) digits = digits.slice(2);
+  else if (digits.startsWith("0")) digits = `92${digits.slice(1)}`;
+  if (digits.length < 10) return null;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
+}
+
+/** CSV cell: quotes, doubled quotes, and a guard against spreadsheet formula injection. */
+export function csvCell(value: unknown) {
+  let s = value == null ? "" : value instanceof Date ? value.toISOString() : String(value);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+export function toCsv(headers: string[], rows: unknown[][]) {
+  return [headers, ...rows].map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
+}

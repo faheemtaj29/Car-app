@@ -3,7 +3,7 @@ import { verifySessionToken, COOKIE_NAME } from "@/backend/lib/session";
 import { canOpenPage } from "@/lib/access";
 
 /** Public website: marketplace, shop, seller accounts, auth screens. */
-const publicPaths = ["/", "/login", "/setup", "/cars", "/bikes", "/sell-car", "/shop", "/post-ad", "/account"];
+const publicPaths = ["/", "/login", "/setup", "/cars", "/bikes", "/sell-car", "/shop", "/post-ad", "/account", "/saved", "/compare"];
 
 /** APIs reachable without a staff session (they do their own checks). */
 const publicApi = ["/api/auth", "/api/site"];
