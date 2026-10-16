@@ -9,7 +9,9 @@ export const metadata: Metadata = {
 type Search = Promise<{ [key: string]: string | string[] | undefined }>;
 
 export default async function PostAdPage({ searchParams }: { searchParams: Search }) {
-  const type = (await searchParams).type === "bike" ? "bike" : "car";
+  const sp = await searchParams;
+  const type = sp.type === "bike" ? "bike" : "car";
+  const garage = typeof sp.garage === "string" && /^[a-f0-9]{24}$/.test(sp.garage) ? sp.garage : undefined;
   return (
     <section className="site-section">
       <span className="site-kicker">Sell it yourself</span>
@@ -18,7 +20,7 @@ export default async function PostAdPage({ searchParams }: { searchParams: Searc
         Free for private sellers: up to 5 live ads, each live for 30 days. Prefer a quick sale?{" "}
         <a href="/sell-car" className="site-link">Get a dealer offer instead →</a>
       </p>
-      <PostAdApp type={type} />
+      <PostAdApp type={type} fromGarage={garage} />
     </section>
   );
 }

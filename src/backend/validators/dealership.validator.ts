@@ -8,7 +8,7 @@ import {
   VEHICLE_STATUSES,
   isValidVin,
 } from "@/lib/dealership";
-import { cleanSpecs } from "@/lib/vehicleSpecs";
+import { cleanSpecs, isVideoUrl } from "@/lib/vehicleSpecs";
 
 const money = z.coerce.number().min(0).default(0);
 const optionalMoney = z.coerce.number().min(0).optional();
@@ -46,6 +46,7 @@ export const vehicleSchema = z.object({
     .max(20)
     .default([]),
   features: z.array(z.string().trim().min(1).max(60)).max(150).default([]),
+  videoUrl: z.string().trim().max(300).refine((v) => !v || isVideoUrl(v), "Video must be a YouTube, Facebook, TikTok or Vimeo link").optional(),
   specs: z.record(z.string(), z.unknown()).optional(),
   acquiredFrom: z.string().optional(),
   acquiredAt: z.string().optional(),

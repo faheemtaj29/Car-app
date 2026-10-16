@@ -4,26 +4,31 @@ import { settingsService } from "@/backend/services/settings.service";
 import { marketplaceService } from "@/backend/services/marketplace.service";
 import { CartBadge } from "@/components/marketplace/ShopClient";
 import { CompareTray } from "@/components/marketplace/SavedClient";
+import { HeaderBadges } from "@/components/marketplace/Alerts";
+import { LangSwitch } from "@/components/marketplace/LangSwitch";
+import { getT } from "@/lib/i18n.server";
 
 export const dynamic = "force-dynamic";
 
 export default async function SiteLayout({ children }: { children: ReactNode }) {
-  const [settings, flags] = await Promise.all([
+  const [settings, flags, { lang, t }] = await Promise.all([
     settingsService.get().catch(() => null),
     marketplaceService.navFlags().catch(() => ({ cars: true, bikes: true, shop: true, classifieds: true })),
+    getT(),
   ]);
   const name = settings?.businessName || "Auto Marketplace";
   const tagline = settings?.tagline || "Cars, bikes, parts & accessories";
   const nav = [
-    { href: "/cars", label: "Used Cars" },
-    { href: "/bikes", label: "Bikes" },
-    ...(flags.shop ? [{ href: "/shop", label: "Parts & Accessories" }] : []),
-    { href: "/sell-car", label: "Sell to Us" },
+    { href: "/cars", label: t("nav.cars") },
+    { href: "/bikes", label: t("nav.bikes") },
+    ...(flags.shop ? [{ href: "/shop", label: t("nav.shop") }] : []),
+    { href: "/sell-car", label: t("nav.sell") },
+    { href: "/car-finance", label: t("nav.finance") },
   ];
   const initials = name.split(" ").filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("");
 
   return (
-    <div className="site">
+    <div className={`site${lang === "ur" ? " ur" : ""}`} dir={lang === "ur" ? "rtl" : "ltr"} lang={lang}>
       <header className="site-nav">
         <Link href="/" className="site-brand">
           <span className="site-badge">{initials || "A"}</span>
@@ -38,10 +43,12 @@ export default async function SiteLayout({ children }: { children: ReactNode }) 
           ))}
         </nav>
         <div className="site-nav-actions">
-          <Link href="/saved" className="mk-saved-link" aria-label="Saved vehicles">♡ Saved</Link>
+          <LangSwitch lang={lang} label={t("lang.switch")} />
+          <HeaderBadges garageLabel={t("nav.garage")} />
+          <Link href="/saved" className="mk-saved-link" aria-label="Saved vehicles">{t("nav.saved")}</Link>
           {flags.shop ? <CartBadge /> : null}
-          <Link href="/account" className="site-btn ghost">My Account</Link>
-          {flags.classifieds ? <Link href="/post-ad" className="site-btn">Post an Ad</Link> : null}
+          <Link href="/account" className="site-btn ghost">{t("nav.account")}</Link>
+          {flags.classifieds ? <Link href="/post-ad" className="site-btn">{t("nav.postAd")}</Link> : null}
         </div>
       </header>
 
@@ -56,19 +63,25 @@ export default async function SiteLayout({ children }: { children: ReactNode }) 
             {settings?.address ? <p>{settings.address}</p> : null}
           </div>
           <div>
-            <h4>Showrooms</h4>
+            <h4>{t("foot.showrooms")}</h4>
             {(settings?.branches || []).map((b) => (
               <p key={b.code}>{b.name}{b.address ? ` — ${b.address}` : ""}{b.phone ? ` · ${b.phone}` : ""}</p>
             ))}
           </div>
           <div>
-            <h4>Contact</h4>
+            <h4>{t("foot.contact")}</h4>
             {settings?.phone ? <p>📞 {settings.phone}</p> : null}
             {settings?.whatsapp ? <p><a href={`https://wa.me/92${settings.whatsapp.replace(/\D/g, "").replace(/^0/, "")}`} target="_blank" rel="noreferrer">WhatsApp {settings.whatsapp}</a></p> : null}
             {settings?.email ? <p>{settings.email}</p> : null}
             {settings?.facebook ? <p><a href={settings.facebook} target="_blank" rel="noreferrer">Facebook</a></p> : null}
             {settings?.instagram ? <p><a href={settings.instagram} target="_blank" rel="noreferrer">Instagram</a></p> : null}
-            <p><Link href="/shop/track">Track a shop order</Link> · <Link href="/login">Staff login</Link></p>
+            <p><Link href="/shop/track">{t("foot.track")}</Link> · <Link href="/login">{t("foot.staff")}</Link></p>
+          </div>
+          <div>
+            <h4>{t("foot.tools")}</h4>
+            <p><Link href="/garage">My Garage</Link></p>
+            <p><Link href="/car-finance">{t("nav.finance")}</Link></p>
+            <p><Link href="/alerts">Alerts</Link> · <Link href="/compare">Compare</Link></p>
           </div>
         </div>
         <div className="site-copy">© {new Date().getFullYear()} {name}</div>

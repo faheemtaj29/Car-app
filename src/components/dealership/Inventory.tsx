@@ -47,6 +47,7 @@ type VehicleForm = {
   photos: string;
   features: string[];
   specs: Specs;
+  videoUrl: string;
   acquiredFrom: string;
   acquiredAt: string;
   notes: string;
@@ -81,6 +82,7 @@ function emptyForm(branch: string): VehicleForm {
     photos: "",
     features: [],
     specs: {},
+    videoUrl: "",
     acquiredFrom: "",
     acquiredAt: toDateInput(new Date()),
     notes: "",
@@ -116,6 +118,7 @@ function toForm(v: Vehicle): VehicleForm {
     photos: (v.photos || []).join("\n"),
     features: v.features || [],
     specs: v.specs || {},
+    videoUrl: v.videoUrl || "",
     acquiredFrom: v.acquiredFrom || "",
     acquiredAt: toDateInput(v.acquiredAt),
     notes: v.notes || "",
@@ -137,6 +140,7 @@ function fromForm(f: VehicleForm) {
     floorPrice: Number(f.floorPrice || 0),
     photos: f.photos.split(/\s+/).map((s) => s.trim()).filter(Boolean),
     stockNo: f.stockNo || undefined,
+    videoUrl: f.videoUrl.trim() || undefined,
     vin: f.vin || undefined,
   };
 }
@@ -463,6 +467,7 @@ export function DealershipInventory({
           <label className="check-row">
             <input type="checkbox" checked={form.featured} onChange={(e) => set("featured", e.target.checked)} /> Featured listing (shown first)
           </label>
+          <Field label="Video walkaround (YouTube / Facebook / TikTok link)"><input className={inputClass} value={form.videoUrl} onChange={(e) => set("videoUrl", e.target.value)} placeholder="https://youtu.be/…" /></Field>
           <Field label="City shown on listing"><input className={inputClass} value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="Lahore" /></Field>
         </div>
         <Field label="Public description"><textarea className={inputClass} rows={3} value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="Bumper-to-bumper original, first owner, complete service history…" /></Field>

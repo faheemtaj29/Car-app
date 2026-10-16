@@ -20,6 +20,11 @@ export function InspectionBadge({ score }: { score: number | null | undefined })
   return <span className="mk-insp-badge">✓ Inspected {score}/10</span>;
 }
 
+export function PriceDropTag({ drop, price }: { drop?: PublicListing["priceDrop"]; price: number }) {
+  if (!drop) return null;
+  return <span className="mk-drop" title={`Was ${formatPKR(drop.from)}`}>↓ {formatPKRShort(drop.from - price)}</span>;
+}
+
 export function listingHref(car: Pick<PublicListing, "_id" | "vehicleType">) {
   return `/${car.vehicleType === "bike" ? "bikes" : "cars"}/${car._id}`;
 }
@@ -32,11 +37,15 @@ export function ListingCard({ car }: { car: PublicListing }) {
         {car.featured ? <span className="mk-ribbon">Featured</span> : null}
         {car.status === "reserved" ? <span className="mk-reserved">Reserved</span> : null}
         {car.photos.length > 1 ? <span className="mk-photo-count">📷 {car.photos.length}</span> : null}
+        {car.videoUrl ? <span className="mk-video-tag">▶ Video</span> : null}
         <SaveCompareButtons id={car._id} type={car.vehicleType} />
       </div>
       <div className="mk-card-body">
         <div className="mk-card-title">{car.title}</div>
-        <div className="mk-card-price">{formatPKRShort(car.price)}</div>
+        <div className="mk-card-price">
+          {formatPKRShort(car.price)}
+          <PriceDropTag drop={car.priceDrop} price={car.price} />
+        </div>
         <div className="mk-card-specs">
           <span>{car.year}</span>
           <span>{car.mileage.toLocaleString()} km</span>

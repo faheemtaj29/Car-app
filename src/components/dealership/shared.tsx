@@ -34,6 +34,7 @@ export type Vehicle = {
   photos: string[];
   features: string[];
   specs?: Record<string, string | number | boolean>;
+  videoUrl?: string;
   acquiredFrom?: string;
   acquiredAt: string;
   soldAt?: string;

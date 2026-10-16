@@ -1,4 +1,5 @@
 import { Schema, Types, models, model } from "mongoose";
+import type { BankOffer, CostConfig } from "@/lib/ownership";
 
 export interface IBranch {
   code: string;
@@ -46,6 +47,15 @@ export interface ISettings {
   branches: IBranch[];
   optionLists: IOptionLists;
   theme: ITheme;
+  /** Running-cost assumptions (fuel prices, token tax, insurance); see lib/ownership. */
+  costs?: Partial<CostConfig>;
+  /** Bank lease offers shown to buyers. Empty = sample offers. */
+  banks?: BankOffer[];
+  /** Where buyers send token money (bank title, IBAN, JazzCash number…). */
+  tokenInstructions?: string;
+  /** Safe token on/off and limits. */
+  tokenEnabled?: boolean;
+  tokenHoldDays?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -95,6 +105,11 @@ const SettingsSchema = new Schema<ISettings>(
       radius: { type: Number, default: 14 },
       solid: { type: Boolean, default: true },
     },
+    costs: { type: Schema.Types.Mixed, default: undefined },
+    banks: { type: [Schema.Types.Mixed], default: undefined },
+    tokenInstructions: String,
+    tokenEnabled: { type: Boolean, default: false },
+    tokenHoldDays: { type: Number, default: 7 },
   },
   { timestamps: true }
 );

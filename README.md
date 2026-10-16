@@ -61,3 +61,26 @@ MONGODB_URI=mongodb://localhost:27017/auto_test npm run test:e2e:reset
 MONGODB_URI=mongodb://localhost:27017/auto_test JWT_SECRET=dev-secret-0123456789abcdef npm run dev
 npm run test:e2e        # in a second terminal (E2E_BASE_URL defaults to http://localhost:3000)
 ```
+
+## Buyer features that set this site apart
+
+| Feature | Where | Notes |
+|---|---|---|
+| **History check** | Every car page | Matches listings by registration/chassis number; flags odometer rollback, shows past prices and how many sellers. Reg/chassis numbers are never shown publicly. |
+| **Plain-language search** | Home page, `/cars`, `/bikes` | "family car under 30 lakh automatic", Roman Urdu ("sasti gari 25 lakh tak Lahore") and Urdu script. Shows what it understood as chips. |
+| **True monthly cost** | Every car page, compare | Fuel, maintenance, token tax (by province), insurance, optional instalment. Rates editable in Settings → Running costs. |
+| **Bank lease comparison** | Car pages, `/car-finance` | All banks side by side with salary-based eligibility. Rates editable in Settings → Bank lease rates (ships with sample banks). |
+| **My Garage** | `/garage` | Oil/service/token tax/insurance reminders, service log, calendar (.ics) export, parts that fit, one-tap "sell this car" with the service record attached. |
+| **Bookings** | Car pages; staff: Dealership → Bookings | Test drives, home inspections, WhatsApp video viewings. Slots cannot be double-booked. Private sellers confirm viewings in their account. |
+| **Reviews & trust** | Car pages; staff: Dealership → Reviews | One review per member per seller, staff can hide abuse, admins can mark a seller "ID verified". New accounts wait `REVIEW_MIN_ACCOUNT_HOURS` (default 24). |
+| **Instant offer** | `/sell-car` | Offer range from comparable cars; recorded on the CRM lead. |
+| **Alerts** | `/alerts`, 🔔 in the header | Saved searches (new matches) and price-drop watches. |
+| **Safe token** | Showroom car pages; staff: Dealership → Safe Tokens | Off by default. Buyer pays the showroom's own account; an admin verifies, which opens a deal with the token as its first payment (car reserved, receipt booked). Refund cancels the deal and reverses the receipt. |
+| **Urdu** | اردو button in the header | Right-to-left layout with Nastaliq font for the main pages. |
+| Extras | | Price-drop badges, video walkarounds, recently viewed, share button, "great deals" and fuel-price board on the home page. |
+
+Run the feature tests after the main suite (same `*_test` database, server started with `REVIEW_MIN_ACCOUNT_HOURS=0`):
+
+```bash
+npm run test:e2e && npm run test:e2e:engagement
+```

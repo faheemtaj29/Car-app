@@ -1,0 +1,3 @@
+import { offerController as c } from "@/backend/controllers/engagement.controller";
+
+export const POST = c.instant;

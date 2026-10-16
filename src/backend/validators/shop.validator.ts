@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { cleanSpecs } from "@/lib/vehicleSpecs";
+import { cleanSpecs, isVideoUrl } from "@/lib/vehicleSpecs";
 import {
   AD_LIMITS,
   CART_LIMITS,
@@ -62,6 +62,9 @@ export const classifiedAdSchema = z.object({
   description: z.string().trim().max(3000).optional(),
   photos: z.array(imageUrl).min(1, "Add at least one photo").max(AD_LIMITS.maxPhotos),
   features: z.array(z.string().trim().min(1).max(60)).max(150).default([]),
+  videoUrl: z.string().trim().max(300).refine((v) => !v || isVideoUrl(v), "Video must be a YouTube, Facebook, TikTok or Vimeo link").optional(),
+  registrationNo: z.string().trim().max(20).optional(),
+  chassisNo: z.string().trim().max(25).optional(),
   specs: z.record(z.string(), z.unknown()).optional(),
   sellerName: z.string().trim().min(2).max(80),
   sellerPhone: phone,

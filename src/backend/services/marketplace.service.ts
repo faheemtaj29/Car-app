@@ -12,6 +12,8 @@ import { InventoryItem } from "@/backend/models/Inventory";
 import { Settings } from "@/backend/models/Settings";
 import { ServiceError } from "@/backend/types";
 import { priceInsight, type PriceInsight } from "@/lib/dealership";
+import { parseSmartQuery } from "@/lib/smartSearch";
+import { offerService } from "@/backend/services/offer.service";
 import type { inquirySchema, sellRequestSchema } from "@/backend/validators/dealership.validator";
 
 type Doc<T> = T & { _id: Types.ObjectId };
@@ -44,6 +46,18 @@ export type ListingFilters = {
   genuinePaint?: boolean;
   /** Must have every one of these features. */
   features?: string[];
+  /** Plain-language search extras (see lib/smartSearch). */
+  bodies?: string[];
+  excludeBodies?: string[];
+  minSeats?: number;
+  minFuelAvg?: number;
+  minCc?: number;
+  maxCc?: number;
+  /** Only listings published after this time (saved-search alerts). */
+  since?: Date;
+  /** The plain-language query and what we read from it. */
+  ask?: string;
+  understood?: string[];
   sort?: string;
   page?: number;
 };
@@ -73,6 +87,11 @@ export type PublicListing = {
   photos: string[];
   features: string[];
   specs: Record<string, string | number | boolean>;
+  videoUrl?: string;
+  /** Set while a price cut is under 30 days old. */
+  priceDrop?: { from: number; at: string };
+  /** Private sellers: member id, for trust score / reviews. */
+  sellerId?: string;
   description?: string;
   featured: boolean;
   publishedAt?: string;
@@ -110,11 +129,23 @@ function baseQuery(f: ListingFilters) {
     q.year = { ...(f.minYear ? { $gte: f.minYear } : {}), ...(f.maxYear ? { $lte: f.maxYear } : {}) };
   }
   if (f.maxKm) q.mileage = { $lte: f.maxKm };
+  if (f.since) q.publishedAt = { $gt: f.since };
   if (f.assembly) q["specs.assembly"] = f.assembly;
   if (f.firstOwner) q["specs.ownership"] = "First owner";
   if (f.accidentFree) q["specs.accidentHistory"] = "No accident";
   if (f.genuinePaint) q["specs.paint"] = "Total genuine";
-  if (f.features?.length) q.$and = f.features.map((x) => ({ features: exact(x) }));
+  const and: Record<string, unknown>[] = [];
+  if (f.features?.length) and.push(...f.features.map((x) => ({ features: exact(x) })));
+  if (f.bodies?.length && !f.body) q.bodyType = { $in: f.bodies };
+  else if (f.excludeBodies?.length && !f.body) q.bodyType = { $nin: f.excludeBodies };
+  // Spec-based asks also accept listings that never filled the spec in, so a
+  // half-complete ad is not hidden; complete ads that fail are excluded.
+  if (f.minSeats) and.push({ $or: [{ "specs.seats": { $gte: f.minSeats } }, { "specs.seats": { $exists: false } }] });
+  if (f.minFuelAvg) {
+    and.push({ $or: [{ "specs.fuelAverageCity": { $gte: f.minFuelAvg } }, { fuel: "Hybrid" }, { fuel: "Electric" }, { engineCc: { $lte: 1300, $gt: 0 } }] });
+  }
+  if (f.minCc || f.maxCc) q.engineCc = { ...(f.minCc ? { $gte: f.minCc } : {}), ...(f.maxCc ? { $lte: f.maxCc } : {}) };
+  if (and.length) q.$and = and;
   if (f.q?.trim()) {
     const rx = new RegExp(esc(f.q.trim()), "i");
     q.$or = [{ make: rx }, { model: rx }, { variant: rx }, { color: rx }, { city: rx }];
@@ -221,6 +252,8 @@ function toPublic(
     photos: v.photos || [],
     features: v.features || [],
     specs: v.specs || {},
+    videoUrl: v.videoUrl,
+    priceDrop: recentDrop(v.priceDrop, v.listPrice),
     description: v.description,
     featured: Boolean(v.featured),
     publishedAt: v.publishedAt ? new Date(v.publishedAt).toISOString() : undefined,
@@ -236,6 +269,12 @@ function toPublic(
     insight,
     branch: b ? { code: b.code, name: b.name, phone: b.phone, address: b.address } : null,
   };
+}
+
+function recentDrop(d: { from: number; at: Date } | undefined, price?: number) {
+  if (!d?.from || !price || d.from <= price) return undefined;
+  if (Date.now() - new Date(d.at).getTime() > 30 * 86_400_000) return undefined;
+  return { from: d.from, at: new Date(d.at).toISOString() };
 }
 
 function adToPublic(a: Doc<IClassifiedAd>, insight: PriceInsight | null): PublicListing {
@@ -263,6 +302,9 @@ function adToPublic(a: Doc<IClassifiedAd>, insight: PriceInsight | null): Public
     photos: a.photos || [],
     features: a.features || [],
     specs: a.specs || {},
+    videoUrl: a.videoUrl,
+    priceDrop: recentDrop(a.priceDrop, a.listPrice),
+    sellerId: String(a.memberId),
     description: a.description,
     featured: Boolean(a.featured),
     publishedAt: a.publishedAt ? new Date(a.publishedAt).toISOString() : undefined,
@@ -583,7 +625,15 @@ export const marketplaceService = {
     const settings = await Settings.findOne().select("defaultBranchCode").lean<{ defaultBranchCode?: string }>();
     const now = new Date();
     const car = `${data.year} ${data.make} ${data.model}`;
-    const text = `🌐 Wants to sell ${car}, ${data.mileage.toLocaleString()} km${data.expectedPrice ? `, asking ${data.expectedPrice.toLocaleString()}` : ""}${data.message ? `: "${data.message}"` : ""}`;
+    // Recomputed here (not taken from the form) so the CRM shows what we really offered.
+    const condition = ({ excellent: "excellent", good: "good", fair: "fair", "needs work": "needs_work" } as const)[
+      (data.condition || "good").toLowerCase() as "good"
+    ] || "good";
+    const offer = await offerService
+      .instant({ vehicleType: "car", make: data.make, model: data.model, year: data.year, mileage: data.mileage, condition, accident: false })
+      .catch(() => null);
+    const offerText = offer?.ok ? ` · instant offer shown ${offer.low.toLocaleString()}–${offer.high.toLocaleString()} (market ~${offer.market.toLocaleString()})` : "";
+    const text = `🌐 Wants to sell ${car}, ${data.mileage.toLocaleString()} km${data.expectedPrice ? `, asking ${data.expectedPrice.toLocaleString()}` : ""}${offerText}${data.message ? `: "${data.message}"` : ""}`;
     const tradeIn = {
       make: data.make,
       model: data.model,
@@ -629,7 +679,7 @@ export function parseListingFilters(get: (key: string) => string | null | undefi
   const str = (k: string) => get(k)?.trim() || undefined;
   const type = get("type");
   const seller = get("seller");
-  return {
+  const explicit: ListingFilters = {
     type: type === "bike" || type === "car" ? type : undefined,
     seller: seller === "dealer" || seller === "private" ? seller : undefined,
     q: str("q"),
@@ -654,4 +704,15 @@ export function parseListingFilters(get: (key: string) => string | null | undefi
     sort: str("sort"),
     page: n("page"),
   };
+  const ask = str("ask")?.slice(0, 200);
+  if (!ask) return explicit;
+  // Explicit filter fields win over what we read from the sentence.
+  const { filters: smart, understood } = parseSmartQuery(ask);
+  // Model names are matched loosely ("Prado" finds "Land Cruiser Prado").
+  const { model: smartModel, ...rest } = smart;
+  const merged: ListingFilters = { ...rest, ...(smartModel ? { q: smartModel } : {}), ask, understood };
+  for (const [k, v] of Object.entries(explicit) as [keyof ListingFilters, unknown][]) {
+    if (v !== undefined && v !== false && !(Array.isArray(v) && !v.length)) (merged as Record<string, unknown>)[k] = v;
+  }
+  return merged;
 }

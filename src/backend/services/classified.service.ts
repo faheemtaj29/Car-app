@@ -9,6 +9,7 @@ import { hashPassword, verifyPassword } from "@/backend/lib/password";
 import { ServiceError, type SessionUser } from "@/backend/types";
 import type { MemberSession } from "@/backend/lib/memberSession";
 import { AD_LIMITS } from "@/lib/shop";
+import { historyService, nextPriceDrop } from "@/backend/services/history.service";
 import type {
   adModerationSchema,
   classifiedAdSchema,
@@ -127,13 +128,15 @@ export const classifiedService = {
     }
     const now = new Date();
     const live = !settings.moderateAds;
-    return ClassifiedAd.create({
+    const ad = await ClassifiedAd.create({
       ...adPayload(data),
       memberId: member.id,
       status: live ? "active" : "pending",
       publishedAt: live ? now : undefined,
       expiresAt: live ? new Date(now.getTime() + AD_LIMITS.daysLive * DAY) : undefined,
     });
+    if (live) await historyService.record(ad.toObject(), "private");
+    return ad;
   },
 
   async update(member: MemberSession, id: string, data: z.infer<typeof classifiedAdSchema>) {
@@ -144,13 +147,16 @@ export const classifiedService = {
       throw new ServiceError("CONFLICT", `A ${ad.status} ad cannot be edited`, 409);
     }
     const settings = await shopSettings();
+    const priceDrop = nextPriceDrop(ad.listPrice, data.listPrice, ad.priceDrop);
     Object.assign(ad, adPayload(data));
+    ad.priceDrop = priceDrop;
     // Edited content is reviewed again so an approved ad cannot be swapped for spam.
     if (settings.moderateAds && ad.status !== "pending") {
       ad.status = "pending";
       ad.rejectReason = undefined;
     }
     await ad.save();
+    if (ad.status === "active") await historyService.record(ad.toObject(), "private");
     return ad;
   },
 
@@ -225,6 +231,7 @@ export const classifiedService = {
     ad.reviewedBy = actor.name;
     ad.reviewedAt = now;
     await ad.save();
+    if (input.action === "approve") await historyService.record(ad.toObject(), "private");
     return ad;
   },
 };

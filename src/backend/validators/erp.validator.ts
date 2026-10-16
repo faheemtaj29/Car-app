@@ -40,6 +40,38 @@ export const settingsSchema = z.object({
       solid: z.boolean().default(true),
     })
     .optional(),
+  costs: z
+    .object({
+      petrolPerLitre: z.coerce.number().min(0).max(5000),
+      dieselPerLitre: z.coerce.number().min(0).max(5000),
+      cngPerKg: z.coerce.number().min(0).max(5000),
+      electricityPerKwh: z.coerce.number().min(0).max(1000),
+      insurancePct: z.coerce.number().min(0).max(20),
+      bikeInsurancePct: z.coerce.number().min(0).max(20),
+      depreciationPct: z.coerce.number().min(0).max(50),
+      bikeAnnualTax: z.coerce.number().min(0).max(100000),
+      tokenTax: z.record(z.string(), z.array(z.object({ maxCc: z.coerce.number().min(1), amount: z.coerce.number().min(0) })).max(12)),
+      updatedNote: z.string().max(200).optional(),
+    })
+    .optional(),
+  tokenInstructions: z.string().trim().max(1000).optional(),
+  tokenEnabled: z.boolean().default(false),
+  tokenHoldDays: z.coerce.number().int().min(1).max(30).default(7),
+  banks: z
+    .array(
+      z.object({
+        name: z.string().trim().min(2).max(60),
+        markupPct: z.coerce.number().min(0).max(60),
+        minDownPct: z.coerce.number().min(0).max(90),
+        maxYears: z.coerce.number().int().min(1).max(10),
+        processingFee: z.coerce.number().min(0),
+        insurancePct: z.coerce.number().min(0).max(20),
+        maxCarAge: z.coerce.number().int().min(0).max(30),
+        islamic: z.boolean().default(false),
+      })
+    )
+    .max(15)
+    .optional(),
 });
 
 export const optionListSchema = z.object({

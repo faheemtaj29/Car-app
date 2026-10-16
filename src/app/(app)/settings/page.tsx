@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { EmptyState, Field, Hero, ModalForm, Panel, inputClass } from "@/components/ui";
 import { THEME_PRESETS } from "@/lib/theme";
 import { prettyDate } from "@/lib/format";
+import { PROVINCES, type BankOffer, type CostConfig } from "@/lib/ownership";
 
 type Branch = { code: string; name: string; address?: string; phone?: string };
 type Settings = {
@@ -12,6 +13,11 @@ type Settings = {
   taxEnabled: boolean; taxName: string; taxRate: number; taxInclusive: boolean;
   defaultBranchCode: string; branches: Branch[];
   theme: { preset: string; primary: string; accent: string; sidebar: string; surface: string; radius: number; solid: boolean };
+  costs: CostConfig;
+  banks: BankOffer[];
+  tokenEnabled?: boolean;
+  tokenInstructions?: string;
+  tokenHoldDays?: number;
 };
 type User = { _id: string; name: string; email: string; phone?: string; role: "admin" | "staff"; isActive: boolean; lastLoginAt?: string };
 
@@ -23,6 +29,7 @@ export default function SettingsPage() {
   const [creating, setCreating] = useState(false);
   const [uf, setUf] = useState({ name: "", email: "", phone: "", role: "staff", password: "", isActive: true });
   const [uErr, setUErr] = useState("");
+  const [taxProvince, setTaxProvince] = useState<string>("Punjab");
 
   const loadUsers = useCallback(async () => {
     const r = await fetch("/api/users");
@@ -133,6 +140,99 @@ export default function SettingsPage() {
             </div>
           </Panel>
         </div>
+        <Panel title="Running costs" meta="USED BY THE 'TRUE MONTHLY COST' CALCULATOR ON EVERY CAR">
+          <div className="form-grid three">
+            {([
+              ["petrolPerLitre", "Petrol (Rs / litre)"],
+              ["dieselPerLitre", "Diesel (Rs / litre)"],
+              ["cngPerKg", "CNG (Rs / kg)"],
+              ["electricityPerKwh", "Electricity (Rs / kWh)"],
+              ["insurancePct", "Car insurance (% of value / year)"],
+              ["bikeInsurancePct", "Bike insurance (% / year)"],
+              ["depreciationPct", "Depreciation (% / year)"],
+              ["bikeAnnualTax", "Bike token tax (Rs / year, 0 = lifetime)"],
+            ] as const).map(([k, label]) => (
+              <Field key={k} label={label}>
+                <input className={inputClass} type="number" min={0} step="any" value={s.costs[k]} onChange={(e) => set("costs", { ...s.costs, [k]: Number(e.target.value) })} />
+              </Field>
+            ))}
+            <Field label="Note shown under the calculator">
+              <input className={inputClass} value={s.costs.updatedNote || ""} onChange={(e) => set("costs", { ...s.costs, updatedNote: e.target.value })} placeholder="Fuel prices as of 1 Nov" />
+            </Field>
+          </div>
+          <div className="form-section-title">Car token tax by engine size</div>
+          <div className="chips" style={{ marginBottom: 8 }}>
+            {PROVINCES.map((p) => (
+              <button key={p} type="button" className={`filter-chip${taxProvince === p ? " active" : ""}`} onClick={() => setTaxProvince(p)}>{p}</button>
+            ))}
+          </div>
+          <div className="table-scroll">
+            <table className="reg">
+              <thead><tr><th>Up to (cc)</th><th>Rs per year</th><th /></tr></thead>
+              <tbody>
+                {(s.costs.tokenTax[taxProvince] || []).map((b, i) => {
+                  const bands = s.costs.tokenTax[taxProvince] || [];
+                  const setBands = (next: typeof bands) => set("costs", { ...s.costs, tokenTax: { ...s.costs.tokenTax, [taxProvince]: next } });
+                  return (
+                    <tr key={i}>
+                      <td><input className={inputClass} type="number" min={1} value={b.maxCc} onChange={(e) => setBands(bands.map((x, j) => (j === i ? { ...x, maxCc: Number(e.target.value) } : x)))} /></td>
+                      <td><input className={inputClass} type="number" min={0} value={b.amount} onChange={(e) => setBands(bands.map((x, j) => (j === i ? { ...x, amount: Number(e.target.value) } : x)))} /></td>
+                      <td className="right"><button type="button" className="link-btn danger" onClick={() => setBands(bands.filter((_, j) => j !== i))}>Remove</button></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+            <button type="button" className="link-btn" onClick={() => set("costs", { ...s.costs, tokenTax: { ...s.costs.tokenTax, [taxProvince]: [...(s.costs.tokenTax[taxProvince] || []), { maxCc: 100000, amount: 0 }] } })}>+ Add band</button>
+            <button type="button" className="link-btn" onClick={() => set("costs", { ...s.costs, tokenTax: Object.fromEntries(PROVINCES.map((p) => [p, s.costs.tokenTax[taxProvince] || []])) })}>Copy {taxProvince} to all provinces</button>
+          </div>
+        </Panel>
+
+        <Panel title="Safe token (hold a car online)" meta="BUYERS SEND TOKEN MONEY TO YOUR ACCOUNT; AN ADMIN VERIFIES IT">
+          <label className="check-row"><input type="checkbox" checked={Boolean(s.tokenEnabled)} onChange={(e) => set("tokenEnabled", e.target.checked)} /> Let buyers hold showroom cars with an online token</label>
+          <div className="form-grid">
+            <Field label="Where buyers send the money (shown on car pages)">
+              <textarea className={inputClass} rows={4} value={s.tokenInstructions || ""} onChange={(e) => set("tokenInstructions", e.target.value)} placeholder={"Bank: …\nAccount title: …\nIBAN: PK…\nJazzCash: 03xx-xxxxxxx"} />
+            </Field>
+            <Field label="Hold the car for (days)">
+              <input className={inputClass} type="number" min={1} max={30} value={s.tokenHoldDays || 7} onChange={(e) => set("tokenHoldDays", Number(e.target.value))} />
+            </Field>
+          </div>
+          <p className="muted small">Only the business account goes here. Verified tokens open a deal with the token as its first payment; refunds cancel that deal and reverse the receipt.</p>
+        </Panel>
+
+        <Panel title="Bank lease rates" meta="SHOWN IN 'COMPARE BANK LEASING' — KEEP CURRENT">
+          <div className="table-scroll">
+            <table className="reg">
+              <thead><tr><th>Bank</th><th>Rate %</th><th>Min down %</th><th>Max yrs</th><th>Fee (Rs)</th><th>Insurance %</th><th>Max car age</th><th>Islamic</th><th /></tr></thead>
+              <tbody>
+                {s.banks.map((b, i) => {
+                  const setBank = (patch: Partial<BankOffer>) => set("banks", s.banks.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+                  const num = (k: keyof BankOffer, step = "any") => (
+                    <input className={inputClass} type="number" min={0} step={step} value={b[k] as number} onChange={(e) => setBank({ [k]: Number(e.target.value) })} style={{ minWidth: 70 }} />
+                  );
+                  return (
+                    <tr key={i}>
+                      <td><input className={inputClass} value={b.name} onChange={(e) => setBank({ name: e.target.value })} style={{ minWidth: 160 }} /></td>
+                      <td>{num("markupPct")}</td>
+                      <td>{num("minDownPct")}</td>
+                      <td>{num("maxYears", "1")}</td>
+                      <td>{num("processingFee")}</td>
+                      <td>{num("insurancePct")}</td>
+                      <td>{num("maxCarAge", "1")}</td>
+                      <td><input type="checkbox" checked={b.islamic} onChange={(e) => setBank({ islamic: e.target.checked })} /></td>
+                      <td className="right"><button type="button" className="link-btn danger" onClick={() => set("banks", s.banks.filter((_, j) => j !== i))}>Remove</button></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <button type="button" className="link-btn" onClick={() => set("banks", [...s.banks, { name: "New bank", markupPct: 15, minDownPct: 30, maxYears: 5, processingFee: 5000, insurancePct: 1.5, maxCarAge: 5, islamic: false }])}>+ Add bank</button>
+        </Panel>
+
         <div className="form-actions"><button type="submit" className="btn-dark">Save settings</button></div>
       </form>
 

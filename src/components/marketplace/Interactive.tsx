@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
-import { financeSummary, formatPKR } from "@/lib/dealership";
+import { FormEvent, useState } from "react";
+import { formatPKR } from "@/lib/dealership";
+import type { InstantOffer } from "@/backend/services/offer.service";
 
 export function Gallery({ photos, title }: { photos: string[]; title: string }) {
   const [i, setI] = useState(0);
@@ -24,43 +25,6 @@ export function Gallery({ photos, title }: { photos: string[]; title: string }) 
           ))}
         </div>
       ) : null}
-    </div>
-  );
-}
-
-export function EmiCalculator({ price }: { price: number }) {
-  const [downPct, setDownPct] = useState(30);
-  const [rate, setRate] = useState(18);
-  const [months, setMonths] = useState(36);
-  const down = Math.round((price * downPct) / 100);
-  const result = useMemo(() => financeSummary(price - down, rate, months), [price, down, rate, months]);
-  return (
-    <div className="mk-emi">
-      <label>
-        Down payment <b>{downPct}% · {formatPKR(down)}</b>
-        <input type="range" min={20} max={80} step={5} value={downPct} onChange={(e) => setDownPct(Number(e.target.value))} />
-      </label>
-      <label>
-        Markup rate <b>{rate}% p.a.</b>
-        <input type="range" min={8} max={30} step={0.5} value={rate} onChange={(e) => setRate(Number(e.target.value))} />
-      </label>
-      <label>
-        Tenure
-        <div className="mk-chips">
-          {[12, 24, 36, 48, 60].map((m) => (
-            <button key={m} type="button" className={m === months ? "active" : ""} onClick={() => setMonths(m)}>
-              {m / 12} yr
-            </button>
-          ))}
-        </div>
-      </label>
-      <div className="mk-emi-result">
-        <span>Estimated monthly instalment</span>
-        <b>{formatPKR(result.emi)}</b>
-        <small>
-          Financed {formatPKR(price - down)} · total markup {formatPKR(result.totalInterest)}. Indicative only; final terms depend on the bank.
-        </small>
-      </div>
     </div>
   );
 }
@@ -152,7 +116,39 @@ export function SellCarForm() {
   });
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState("");
-  const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const [offer, setOffer] = useState<InstantOffer | null>(null);
+  const [pricing, setPricing] = useState(false);
+  const set = (k: keyof typeof form, v: string) => {
+    setForm((f) => ({ ...f, [k]: v }));
+    if (["make", "model", "year", "mileage", "condition"].includes(k)) setOffer(null);
+  };
+
+  async function getOffer() {
+    setError("");
+    if (!form.make || !form.model || !form.mileage) {
+      setError("Enter make, model and mileage to see an offer");
+      return;
+    }
+    setPricing(true);
+    try {
+      const res = await fetch("/api/site/instant-offer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          make: form.make, model: form.model, year: Number(form.year), mileage: Number(form.mileage),
+          condition: form.condition.toLowerCase().replace(" ", "_"),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not price this car");
+      setOffer(data.offer);
+      if (data.offer.ok && !form.expectedPrice) setForm((f) => ({ ...f, expectedPrice: String(data.offer.high) }));
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setPricing(false);
+    }
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -207,6 +203,23 @@ export function SellCarForm() {
         </label>
         <label>Expected price (PKR)<input type="number" min={0} value={form.expectedPrice} onChange={(e) => set("expectedPrice", e.target.value)} /></label>
       </div>
+      <button type="button" className="site-btn ghost" onClick={getOffer} disabled={pricing} style={{ marginTop: 12 }}>
+        {pricing ? "Checking the market…" : "⚡ See my instant offer"}
+      </button>
+      {offer ? (
+        offer.ok ? (
+          <div className="io">
+            <span>Our instant offer</span>
+            <b>{formatPKR(offer.low)} – {formatPKR(offer.high)}</b>
+            <small>
+              Market value about {formatPKR(offer.market)}, from {offer.comps} similar cars on this site. Final price after a free 30-minute
+              inspection. Send your details below and our evaluator will call you to book it.
+            </small>
+          </div>
+        ) : (
+          <div className="io none"><small>{offer.reason}</small></div>
+        )
+      ) : null}
       <div className="site-form-section">Your details</div>
       <div className="site-form-grid">
         <label>Full name<input value={form.name} onChange={(e) => set("name", e.target.value)} required minLength={2} /></label>

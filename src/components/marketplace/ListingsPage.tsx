@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ListingCard } from "@/components/marketplace/Listing";
+import { SaveSearchButton } from "@/components/marketplace/Alerts";
+import { getT } from "@/lib/i18n.server";
 import { marketplaceService, parseListingFilters } from "@/backend/services/marketplace.service";
 import { formatPKRShort } from "@/lib/dealership";
 import { BODY_TYPES } from "@/lib/shop";
@@ -29,15 +32,30 @@ export async function ListingsPage({ type, searchParams }: { type: "car" | "bike
     const v = raw[k];
     return Array.isArray(v) ? (k === "feat" ? v.join(",") : v[0]) : v;
   };
-  const filters = { ...parseListingFilters(get), type };
+  const parsed = parseListingFilters(get);
+  // "bike under 2 lakh" typed on /cars belongs on /bikes.
+  if (parsed.ask && parsed.type && parsed.type !== type) {
+    redirect(`/${parsed.type === "bike" ? "bikes" : "cars"}?ask=${encodeURIComponent(parsed.ask)}`);
+  }
+  const filters = { ...parsed, type };
   const base = type === "bike" ? "/bikes" : "/cars";
   const noun = type === "bike" ? "bike" : "car";
-  const [{ listings, total, page, pages }, facets, flags] = await Promise.all([
+  const [{ listings, total, page, pages }, facets, flags, { t }] = await Promise.all([
     marketplaceService.search(filters),
     marketplaceService.facets(filters),
     marketplaceService.navFlags(),
+    getT(),
   ]);
   const years = Array.from({ length: facets.maxYear - facets.minYear + 1 }, (_, i) => facets.maxYear - i);
+
+  const searchQs = new URLSearchParams();
+  Object.entries(raw).forEach(([k, v]) => {
+    if (k !== "page") (Array.isArray(v) ? v : [v]).forEach((val) => val && searchQs.append(k, val));
+  });
+  const savedQuery = `${base}${searchQs.toString() ? `?${searchQs}` : ""}`;
+  const savedLabel =
+    filters.understood?.length ? filters.understood.join(" · ")
+      : [filters.make, filters.model, filters.city, filters.maxPrice ? `under ${formatPKRShort(filters.maxPrice)}` : "", filters.minYear ? `${filters.minYear}+` : ""].filter(Boolean).join(" · ") || `All ${noun}s`;
 
   const pageHref = (p: number) => {
     const qs = new URLSearchParams();
@@ -52,11 +70,29 @@ export async function ListingsPage({ type, searchParams }: { type: "car" | "bike
   return (
     <section className="site-section mk-wrap">
       <span className="site-kicker">Marketplace</span>
-      <h2>{type === "bike" ? "Motorbikes for sale" : "Cars for sale"}</h2>
+      <h2>{type === "bike" ? t("list.bikes") : t("list.cars")}</h2>
       <p className="site-lead">
-        Dealer {noun}s come inspected and priced against the market; private sellers list their own.{" "}
+        {t("list.lead")}{" "}
         {flags.classifieds ? <Link href={`/post-ad?type=${type}`} className="site-link">Post your {noun} ad free →</Link> : null}
       </p>
+      <form className="mk-ask" method="get" action={base}>
+        <span aria-hidden>✨</span>
+        <input
+          name="ask"
+          defaultValue={filters.ask}
+          maxLength={200}
+          aria-label="Describe what you are looking for"
+          placeholder={type === "bike" ? "e.g. self start bike under 2 lakh in Lahore" : "e.g. family car under 30 lakh, automatic, good mileage"}
+        />
+        <button type="submit" className="site-btn">{t("home.find")}</button>
+      </form>
+      {filters.ask ? (
+        <div className="mk-understood">
+          <span>{t("list.searched")}</span>
+          {filters.understood?.length ? filters.understood.map((u) => <b key={u}>{u}</b>) : <em>keywords only</em>}
+          <Link href={base} className="site-link">{t("list.clear")}</Link>
+        </div>
+      ) : null}
       <div className="mk-type-tabs">
         <Link href="/cars" className={type === "car" ? "active" : ""}>🚗 Cars</Link>
         <Link href="/bikes" className={type === "bike" ? "active" : ""}>🏍️ Bikes</Link>
@@ -65,6 +101,7 @@ export async function ListingsPage({ type, searchParams }: { type: "car" | "bike
 
       <div className="mk-layout">
         <form className="mk-filters" id="filters" method="get" action={base}>
+          {filters.ask ? <input type="hidden" name="ask" value={filters.ask} /> : null}
           <label>Seller
             <select name="seller" defaultValue={filters.seller || ""}>
               <option value="">Dealers & private sellers</option>
@@ -173,6 +210,7 @@ export async function ListingsPage({ type, searchParams }: { type: "car" | "bike
         <div>
           <div className="mk-results-head">
             <b>{total.toLocaleString()} {total === 1 ? noun : `${noun}s`} found</b>
+            <SaveSearchButton query={savedQuery} label={savedLabel} />
             <a href="#filters" className="mk-filter-jump">Filter & sort ↓</a>
           </div>
           {listings.length ? (

@@ -16,12 +16,12 @@ type Ad = {
   _id: string; vehicleType: VehicleType; make: string; model: string; variant?: string; year: number; mileage: number;
   fuel?: string; transmission?: string; engineCc?: number; color?: string; bodyType?: string; condition: "new" | "used";
   registeredIn?: string; city: string; listPrice: number; negotiable: boolean; description?: string; photos: string[];
-  features: string[]; specs?: Record<string, string | number | boolean>; sellerName: string; sellerPhone: string; showPhone: boolean; status: string; rejectReason?: string;
+  features: string[]; specs?: Record<string, string | number | boolean>; videoUrl?: string; registrationNo?: string; chassisNo?: string; sellerName: string; sellerPhone: string; showPhone: boolean; status: string; rejectReason?: string;
   expiresAt?: string; views: number; contacts: number;
   messages: { _id: string; name: string; phone: string; message?: string; offerPrice?: number; at: string; read: boolean }[];
 };
 
-async function call<T>(url: string, method = "GET", body?: unknown): Promise<T> {
+export async function call<T>(url: string, method = "GET", body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,
@@ -80,7 +80,8 @@ export function AuthPanel({ onDone, intro }: { onDone: () => void; intro?: strin
 
 /* ---------------------------------------------------------- ad form */
 
-type AdForm = Omit<Ad, "_id" | "status" | "rejectReason" | "expiresAt" | "views" | "contacts" | "messages" | "year" | "mileage" | "listPrice" | "engineCc" | "specs"> & {
+type AdForm = Omit<Ad, "_id" | "status" | "rejectReason" | "expiresAt" | "views" | "contacts" | "messages" | "year" | "mileage" | "listPrice" | "engineCc" | "specs" | "videoUrl" | "registrationNo" | "chassisNo"> & {
+  videoUrl: string; registrationNo: string; chassisNo: string;
   year: string; mileage: string; listPrice: string; engineCc: string; specs: Record<string, string | number | boolean>;
 };
 
@@ -89,7 +90,7 @@ function blankAd(type: VehicleType, me?: Me["member"]): AdForm {
     vehicleType: type, make: "", model: "", variant: "", year: String(new Date().getFullYear() - 3), mileage: "",
     fuel: "Petrol", transmission: type === "bike" ? "Manual" : "Automatic", engineCc: "", color: "", bodyType: "",
     condition: "used", registeredIn: "", city: me?.city || "", listPrice: "", negotiable: true, description: "",
-    photos: [], features: [], specs: {}, sellerName: me?.name || "", sellerPhone: me?.phone || "", showPhone: true,
+    photos: [], features: [], specs: {}, videoUrl: "", registrationNo: "", chassisNo: "", sellerName: me?.name || "", sellerPhone: me?.phone || "", showPhone: true,
   };
 }
 
@@ -98,7 +99,7 @@ function adToForm(a: Ad): AdForm {
     ...a, variant: a.variant || "", color: a.color || "", bodyType: a.bodyType || "", registeredIn: a.registeredIn || "",
     description: a.description || "", fuel: a.fuel || "", transmission: a.transmission || "",
     year: String(a.year), mileage: String(a.mileage), listPrice: String(a.listPrice), engineCc: a.engineCc ? String(a.engineCc) : "",
-    specs: a.specs || {},
+    specs: a.specs || {}, videoUrl: a.videoUrl || "", registrationNo: a.registrationNo || "", chassisNo: a.chassisNo || "",
   };
 }
 
@@ -121,6 +122,9 @@ export function AdEditor({ initial, editId, onSaved }: { initial: AdForm; editId
         mileage: Number(f.mileage || 0),
         listPrice: Number(f.listPrice || 0),
         engineCc: f.engineCc ? Number(f.engineCc) : undefined,
+        videoUrl: f.videoUrl.trim() || undefined,
+        registrationNo: f.registrationNo.trim() || undefined,
+        chassisNo: f.chassisNo.trim() || undefined,
       };
       const res = await call<{ ad: { status: string } }>(editId ? `/api/site/member/ads/${editId}` : "/api/site/member/ads", editId ? "PUT" : "POST", body);
       onSaved(res.ad.status);
@@ -183,6 +187,14 @@ export function AdEditor({ initial, editId, onSaved }: { initial: AdForm; editId
           </select>
         </label>
       </div>
+      <div className="site-form-section">History check <span className="mk-muted">(private — never shown on your ad)</span></div>
+      <p className="mk-muted small">Buyers see a &quot;History check&quot; badge built from these numbers: past listings and whether the odometer was ever higher. Ads with it get more trust.</p>
+      <div className="site-form-grid">
+        <label>Registration number<input value={f.registrationNo} onChange={(e) => set("registrationNo", e.target.value.toUpperCase())} placeholder="LEA-22-1234" maxLength={20} /></label>
+        <label>Chassis number<input value={f.chassisNo} onChange={(e) => set("chassisNo", e.target.value.toUpperCase())} maxLength={25} /></label>
+      </div>
+      <label className="site-form-wide">Video walkaround link (optional)<input value={f.videoUrl} onChange={(e) => set("videoUrl", e.target.value)} placeholder="YouTube, Facebook or TikTok link" /></label>
+
       <div className="site-form-section">Specifications & features <span className="mk-muted">(optional — detailed ads sell faster)</span></div>
       <VehicleSpecsEditor kind={f.vehicleType} specs={f.specs} features={f.features} onSpecs={(s) => set("specs", s)} onFeatures={(x) => set("features", x)} />
       <label className="site-form-wide">Description<textarea rows={4} value={f.description} onChange={(e) => set("description", e.target.value)} placeholder="Condition, service history, reason for selling…" /></label>
@@ -206,7 +218,7 @@ export function AdEditor({ initial, editId, onSaved }: { initial: AdForm; editId
 
 /* ------------------------------------------------------- page shells */
 
-function useMe() {
+export function useMe() {
   const [me, setMe] = useState<Me | null>(null);
   const [state, setState] = useState<"loading" | "in" | "out">("loading");
   const load = useCallback(async () => {
@@ -225,10 +237,21 @@ function useMe() {
   return { me, state, reload: load };
 }
 
-export function PostAdApp({ type }: { type: VehicleType }) {
+type GarageSell = { car: { vehicleType: VehicleType; make: string; model: string; variant?: string; year: number; engineCc?: number; fuel?: string; transmission?: string; color?: string; registrationNo?: string; estimatedKm: number; serviceLog: unknown[] }; description: string };
+
+export function PostAdApp({ type, fromGarage }: { type: VehicleType; fromGarage?: string }) {
   const { me, state, reload } = useMe();
   const [done, setDone] = useState<string | null>(null);
-  if (state === "loading") return <p className="mk-muted">Loading…</p>;
+  const [prefill, setPrefill] = useState<GarageSell | null>(null);
+  const [prefillState, setPrefillState] = useState<"none" | "loading" | "ready">(fromGarage ? "loading" : "none");
+  useEffect(() => {
+    if (state !== "in" || !fromGarage) return;
+    call<GarageSell>(`/api/site/garage/${fromGarage}/sell`)
+      .then(setPrefill)
+      .catch(() => undefined)
+      .finally(() => setPrefillState("ready"));
+  }, [state, fromGarage]);
+  if (state === "loading" || (state === "in" && prefillState === "loading")) return <p className="mk-muted">Loading…</p>;
   if (state === "out") return <AuthPanel onDone={reload} intro="Log in or create a free account to post your ad and receive buyer messages." />;
   if (done) {
     return (
@@ -243,7 +266,23 @@ export function PostAdApp({ type }: { type: VehicleType }) {
       </div>
     );
   }
-  return <AdEditor initial={blankAd(type, me?.member)} onSaved={(status) => setDone(status)} />;
+  const base = blankAd(prefill?.car.vehicleType || type, me?.member);
+  const initial: AdForm = prefill
+    ? {
+        ...base,
+        make: prefill.car.make, model: prefill.car.model, variant: prefill.car.variant || "", year: String(prefill.car.year),
+        mileage: String(prefill.car.estimatedKm), engineCc: prefill.car.engineCc ? String(prefill.car.engineCc) : "",
+        fuel: prefill.car.fuel || base.fuel, transmission: prefill.car.transmission || base.transmission, color: prefill.car.color || "",
+        registrationNo: prefill.car.registrationNo || "", description: prefill.description,
+        specs: prefill.car.serviceLog.length ? { serviceHistory: prefill.car.serviceLog.length >= 3 ? "Complete dealer record" : "Partial record" } : {},
+      }
+    : base;
+  return (
+    <>
+      {prefill ? <div className="mk-note">Filled in from <b>My Garage</b>, including your service record. Add photos and a price to finish.</div> : null}
+      <AdEditor initial={initial} onSaved={(status) => setDone(status)} />
+    </>
+  );
 }
 
 const STATUS_NOTE: Record<string, string> = {

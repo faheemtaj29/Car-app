@@ -233,3 +233,29 @@ export function groupFeatures(features: string[], kind: VehicleKind) {
   const other = features.filter((x) => !known.has(x.toLowerCase()));
   return { groups, other };
 }
+
+/* ------------------------------------------------ video & identity helpers */
+
+const VIDEO_HOSTS = /^https:\/\/(www\.|m\.)?(youtube\.com|youtu\.be|facebook\.com|fb\.watch|tiktok\.com|vimeo\.com)\//i;
+
+export const isVideoUrl = (v: string) => VIDEO_HOSTS.test(v.trim());
+
+/** Embeddable URL for YouTube/Vimeo; other hosts are shown as a link. */
+export function videoEmbed(url?: string) {
+  if (!url) return null;
+  const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/i);
+  if (yt) return `https://www.youtube-nocookie.com/embed/${yt[1]}`;
+  const vm = url.match(/vimeo\.com\/(\d+)/i);
+  if (vm) return `https://player.vimeo.com/video/${vm[1]}`;
+  return null;
+}
+
+/** "LEA-22-1234" / "lea 22 1234" → "REG:LEA221234"; chassis → "VIN:…". */
+export function identityKeys(v: { registrationNo?: string | null; vin?: string | null; chassisNo?: string | null }) {
+  const keys: string[] = [];
+  const reg = (v.registrationNo || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (reg.length >= 4) keys.push(`REG:${reg}`);
+  const chassis = (v.vin || v.chassisNo || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (chassis.length >= 6) keys.push(`VIN:${chassis}`);
+  return keys;
+}

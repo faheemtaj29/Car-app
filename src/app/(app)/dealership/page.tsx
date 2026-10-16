@@ -8,6 +8,7 @@ import { DealershipInventory } from "@/components/dealership/Inventory";
 import { DealershipCustomers } from "@/components/dealership/Customers";
 import { DealershipDeals, type DealPrefill } from "@/components/dealership/Deals";
 import { DealershipClassifieds } from "@/components/dealership/Classifieds";
+import { DealershipBookings, DealershipReviews, DealershipTokens } from "@/components/dealership/Engagement";
 import type { Branch } from "@/components/dealership/shared";
 
 const TABS = [
@@ -16,6 +17,9 @@ const TABS = [
   ["customers", "Customers & Leads"],
   ["deals", "Deals & Financing"],
   ["classifieds", "Public Ads"],
+  ["bookings", "Bookings"],
+  ["tokens", "Safe Tokens"],
+  ["reviews", "Reviews"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
@@ -122,7 +126,10 @@ export default function DealershipPage() {
           onPrefillHandled={clearPrefill}
         />
       ) : null}
-      {tab === "classifieds" ? <DealershipClassifieds /> : null}
+      {tab === "classifieds" ? <DealershipClassifieds isAdmin={me.role === "admin"} /> : null}
+      {tab === "bookings" ? <DealershipBookings /> : null}
+      {tab === "tokens" ? <DealershipTokens isAdmin={me.role === "admin"} /> : null}
+      {tab === "reviews" ? <DealershipReviews /> : null}
     </>
   );
 }

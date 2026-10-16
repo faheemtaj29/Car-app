@@ -13,6 +13,7 @@ import { Settings } from "@/backend/models/Settings";
 import { ServiceError, type SessionUser } from "@/backend/types";
 import { recordAudit, getAuditTrail } from "@/backend/lib/audit";
 import { accountingService } from "@/backend/services/accounting.service";
+import { historyService, nextPriceDrop } from "@/backend/services/history.service";
 import {
   AGING_BUCKETS,
   LEAD_STAGES,
@@ -283,6 +284,7 @@ export const vehicleService = {
       createdBy: actor?.id || undefined,
     });
     await postVehicleCost(vehicle.toObject(), actor);
+    await historyService.record(vehicle.toObject(), "dealer");
     await recordAudit({
       module: "dealership",
       action: "created",
@@ -314,6 +316,7 @@ export const vehicleService = {
     }
     const before = { listPrice: vehicle.listPrice, status: vehicle.status };
     const wasPublished = vehicle.published;
+    const priceDrop = nextPriceDrop(vehicle.listPrice, data.listPrice, vehicle.priceDrop);
     Object.assign(vehicle, {
       ...data,
       stockNo: data.stockNo?.trim() || vehicle.stockNo,
@@ -322,10 +325,12 @@ export const vehicleService = {
       branchCode: (data.branchCode || vehicle.branchCode).toUpperCase(),
       acquiredAt: data.acquiredAt ? new Date(data.acquiredAt) : vehicle.acquiredAt,
     });
+    vehicle.priceDrop = priceDrop;
     assertPublishable(vehicle);
     if (vehicle.published && !wasPublished) vehicle.publishedAt = new Date();
     await vehicle.save();
     await postVehicleCost(vehicle.toObject(), actor);
+    await historyService.record(vehicle.toObject(), "dealer");
     if (before.listPrice !== vehicle.listPrice) {
       await recordAudit({
         module: "dealership",

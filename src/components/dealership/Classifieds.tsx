@@ -10,13 +10,14 @@ import { Pill, Sheet, api, label, pkr } from "./shared";
 type Ad = {
   _id: string; vehicleType: "car" | "bike"; make: string; model: string; variant?: string; year: number; mileage: number;
   city: string; listPrice: number; negotiable: boolean; description?: string; photos: string[]; features: string[]; specs?: Record<string, string | number | boolean>;
+  memberId: string; registrationNo?: string; chassisNo?: string; videoUrl?: string;
   sellerName: string; sellerPhone: string; status: string; rejectReason?: string; featured: boolean;
   createdAt: string; publishedAt?: string; expiresAt?: string; views: number; contacts: number; reviewedBy?: string;
   fuel?: string; transmission?: string; engineCc?: number; color?: string; registeredIn?: string;
 };
 
 /** Staff review queue for public car/bike ads. */
-export function DealershipClassifieds() {
+export function DealershipClassifieds({ isAdmin = false }: { isAdmin?: boolean }) {
   const [status, setStatus] = useState("pending");
   const [data, setData] = useState<{ ads: Ad[]; counts: Record<string, number> } | null>(null);
   const [open, setOpen] = useState<Ad | null>(null);
@@ -45,6 +46,16 @@ export function DealershipClassifieds() {
       setError((e as Error).message);
     }
   }
+  async function verifySeller(ad: Ad) {
+    if (!confirm(`Have you checked ${ad.sellerName}'s original CNIC in person? Buyers will see an "ID verified" badge.`)) return;
+    try {
+      await api(`/api/shop/members/${ad.memberId}`, { method: "POST", json: { verified: true } });
+      alert("Seller marked as ID-verified.");
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
   const withReason = (ad: Ad, action: "reject" | "remove") => {
     const reason = prompt(action === "reject" ? "What should the seller fix? (shown to them)" : "Reason for removal");
     if (reason) act(ad, { action, reason });
@@ -115,6 +126,8 @@ export function DealershipClassifieds() {
                 <dt>Engine / fuel</dt><dd>{open.engineCc ? `${open.engineCc} cc` : "—"} · {open.fuel || "—"} {open.transmission ? `· ${open.transmission}` : ""}</dd>
                 <dt>Colour</dt><dd>{open.color || "—"}</dd>
                 <dt>Registered in</dt><dd>{open.registeredIn || "—"}</dd>
+                <dt>Reg. / chassis (private)</dt><dd>{open.registrationNo || "—"} · {open.chassisNo || "—"}</dd>
+                {open.videoUrl ? <><dt>Video</dt><dd><a href={open.videoUrl} target="_blank" rel="noreferrer nofollow">Open ↗</a></dd></> : null}
                 <dt>Live until</dt><dd>{prettyDate(open.expiresAt)}</dd>
                 <dt>Reviewed by</dt><dd>{open.reviewedBy || "—"}</dd>
               </dl>
@@ -132,6 +145,7 @@ export function DealershipClassifieds() {
                   <button type="button" className="btn-ghost" onClick={() => act(open, { action: "feature", featured: !open.featured })}>{open.featured ? "Remove from featured" : "Feature this ad"}</button>
                 </>
               ) : null}
+              {isAdmin ? <button type="button" className="link-btn" onClick={() => verifySeller(open)}>Mark seller ID-verified (CNIC seen)</button> : null}
               {open.status !== "removed" ? <button type="button" className="link-btn danger" onClick={() => withReason(open, "remove")}>Remove ad</button> : null}
             </div>
           </>

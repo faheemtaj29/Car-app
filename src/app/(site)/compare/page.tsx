@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import { marketplaceService, type PublicListing } from "@/backend/services/marketplace.service";
 import { listingHref } from "@/components/marketplace/Listing";
 import { formatPKR, inspectionGrade, PRICE_RATING_LABEL } from "@/lib/dealership";
+import { monthlyCost, type CostConfig } from "@/lib/ownership";
+import { settingsService } from "@/backend/services/settings.service";
 import { SPEC_FIELDS, SPEC_GROUPS, groupFeatures, specText } from "@/lib/vehicleSpecs";
 
 export const dynamic = "force-dynamic";
@@ -45,6 +47,17 @@ const HIGHER_BETTER = new Set(["fuelAverageCity", "fuelAverageHighway", "horsepo
 const OWNERSHIP_RANK: Record<string, number> = { "First owner": 1, "Second owner": 2, "Third owner": 3, "Fourth owner or more": 4 };
 
 /** Detailed rows, only for specs at least one of the compared vehicles has. */
+/** Same assumptions for every car: 40 km a day in Punjab, paid in cash. */
+function costRow(costs: CostConfig): Row {
+  const cost = (c: PublicListing) =>
+    monthlyCost(costs, {
+      kind: c.vehicleType, price: c.price, engineCc: c.engineCc, fuel: c.fuel,
+      fuelAverage: typeof c.specs.fuelAverageCity === "number" ? c.specs.fuelAverageCity : undefined,
+      dailyKm: 40, province: "Punjab",
+    }).total;
+  return { label: "Monthly running cost*", value: (c) => formatPKR(cost(c)), best: (cs) => minBy(cs, cost) };
+}
+
 function detailSections(cars: PublicListing[]): { title: string; rows: Row[] }[] {
   const specSections = SPEC_GROUPS.map((g) => ({
     title: g.label,
@@ -84,7 +97,7 @@ function detailSections(cars: PublicListing[]): { title: string; rows: Row[] }[]
 export default async function ComparePage({ searchParams }: { searchParams: Search }) {
   const raw = (await searchParams).ids;
   const ids = (Array.isArray(raw) ? raw[0] : raw || "").split(",").filter(Boolean).slice(0, 3);
-  const cars = await marketplaceService.listingsByIds(ids);
+  const [cars, { costs }] = await Promise.all([marketplaceService.listingsByIds(ids), settingsService.finance()]);
 
   return (
     <section className="site-section mk-wrap">
@@ -112,7 +125,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Sear
               </tr>
             </thead>
             <tbody>
-              {[{ title: "Overview", rows: ROWS }, ...detailSections(cars)].flatMap((sec) => [
+              {[{ title: "Overview", rows: [...ROWS, costRow(costs)] }, ...detailSections(cars)].flatMap((sec) => [
                 <tr key={`h-${sec.title}`} className="mk-compare-section">
                   <th colSpan={cars.length + 1}>{sec.title}</th>
                 </tr>,
@@ -134,6 +147,7 @@ export default async function ComparePage({ searchParams }: { searchParams: Sear
               ])}
             </tbody>
           </table>
+          <p className="mk-muted small" style={{ padding: "8px 12px" }}>* Fuel, maintenance, token tax and insurance at 40 km a day in Punjab, paid in cash. Open a car to change these.</p>
         </div>
       )}
     </section>

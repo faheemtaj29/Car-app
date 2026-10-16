@@ -57,6 +57,10 @@ export interface IVehicle {
   features: string[];
   /** Detailed specs keyed by the catalogue in lib/vehicleSpecs. */
   specs?: Record<string, string | number | boolean>;
+  /** YouTube / Facebook / TikTok / Vimeo walkaround link. */
+  videoUrl?: string;
+  /** Last price cut, for "price dropped" badges and alerts. */
+  priceDrop?: { from: number; at: Date };
   acquiredFrom?: string;
   acquiredAt: Date;
   soldAt?: Date;
@@ -123,6 +127,8 @@ const VehicleSchema = new Schema<IVehicle>(
     photos: { type: [String], default: [] },
     features: { type: [String], default: [] },
     specs: { type: Schema.Types.Mixed, default: undefined },
+    videoUrl: String,
+    priceDrop: { from: Number, at: Date },
     acquiredFrom: String,
     acquiredAt: { type: Date, default: Date.now },
     soldAt: Date,

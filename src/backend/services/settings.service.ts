@@ -2,6 +2,7 @@ import type { z } from "zod";
 import { dbConnect } from "@/backend/config/database";
 import { Settings, ensureSettings, type ISettings } from "@/backend/models/Settings";
 import { DEFAULT_THEME } from "@/lib/theme";
+import { DEFAULT_BANKS, DEFAULT_COSTS, type BankOffer, type CostConfig } from "@/lib/ownership";
 import type { settingsSchema } from "@/backend/validators/erp.validator";
 
 type SettingsInput = z.infer<typeof settingsSchema>;
@@ -16,7 +17,15 @@ export const settingsService = {
       ...doc,
       branches: doc.branches?.length ? doc.branches : [{ code: "MAIN", name: "Main Showroom" }],
       theme: { ...DEFAULT_THEME, ...(doc.theme || {}) },
+      costs: { ...DEFAULT_COSTS, ...(doc.costs || {}) },
+      banks: doc.banks?.length ? doc.banks : DEFAULT_BANKS,
     };
+  },
+
+  /** Running-cost assumptions and bank offers for public calculators. */
+  async finance(): Promise<{ costs: CostConfig; banks: BankOffer[] }> {
+    const s = await this.get();
+    return { costs: s.costs as CostConfig, banks: s.banks as BankOffer[] };
   },
 
   async update(data: SettingsInput) {

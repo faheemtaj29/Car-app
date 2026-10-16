@@ -14,6 +14,9 @@ export interface IMarketMember {
   lastLoginAt?: Date;
   failedLogins: number;
   lockedUntil?: Date;
+  /** Staff checked the seller's CNIC in person. */
+  idVerified?: boolean;
+  idVerifiedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,6 +32,8 @@ const MarketMemberSchema = new Schema<IMarketMember>(
     lastLoginAt: Date,
     failedLogins: { type: Number, default: 0 },
     lockedUntil: Date,
+    idVerified: { type: Boolean, default: false },
+    idVerifiedAt: Date,
   },
   { timestamps: true }
 );
@@ -76,6 +81,13 @@ export interface IClassifiedAd {
   features: string[];
   /** Detailed specs keyed by the catalogue in lib/vehicleSpecs. */
   specs?: Record<string, string | number | boolean>;
+  /** YouTube / Facebook / TikTok / Vimeo walkaround link. */
+  videoUrl?: string;
+  /** Last price cut, for "price dropped" badges and alerts. */
+  priceDrop?: { from: number; at: Date };
+  /** Private: used only to match this car's listing history, never shown. */
+  registrationNo?: string;
+  chassisNo?: string;
   sellerName: string;
   sellerPhone: string;
   showPhone: boolean;
@@ -125,6 +137,10 @@ const ClassifiedAdSchema = new Schema<IClassifiedAd>(
     photos: { type: [String], default: [] },
     features: { type: [String], default: [] },
     specs: { type: Schema.Types.Mixed, default: undefined },
+    videoUrl: String,
+    priceDrop: { from: Number, at: Date },
+    registrationNo: { type: String, trim: true, uppercase: true },
+    chassisNo: { type: String, trim: true, uppercase: true },
     sellerName: { type: String, required: true, trim: true },
     sellerPhone: { type: String, required: true, trim: true },
     showPhone: { type: Boolean, default: true },

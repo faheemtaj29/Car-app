@@ -1,11 +1,22 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { EmiCalculator, Gallery, InquiryForm } from "@/components/marketplace/Interactive";
-import { InspectionBadge, InspectionReport, ListingCard, PriceBadge, PriceMeter } from "@/components/marketplace/Listing";
+import { Gallery, InquiryForm } from "@/components/marketplace/Interactive";
+import { BankLease, OwnershipCost } from "@/components/marketplace/MoneyTools";
+import { BookingWidget } from "@/components/marketplace/Booking";
+import { WatchPriceButton } from "@/components/marketplace/Alerts";
+import { SafeToken, TrustCard } from "@/components/marketplace/TrustTools";
+import { reviewService } from "@/backend/services/review.service";
+import { tokenService } from "@/backend/services/token.service";
+import { getT } from "@/lib/i18n.server";
+import { RecentlyViewed, ShareButton, TrackView } from "@/components/marketplace/Extras";
+import { InspectionBadge, InspectionReport, ListingCard, PriceBadge, PriceDropTag, PriceMeter } from "@/components/marketplace/Listing";
 import { ShowPhone } from "@/components/marketplace/Interactive";
 import { SaveCompareButtons } from "@/components/marketplace/SavedClient";
 import { FeatureChecklist, SpecGlance, SpecTables } from "@/components/VehicleSpecsView";
+import { HistoryCheck } from "@/components/marketplace/HistoryCheck";
+import { historyService } from "@/backend/services/history.service";
+import { videoEmbed } from "@/lib/vehicleSpecs";
 import { settingsService } from "@/backend/services/settings.service";
 import { whatsappLink } from "@/lib/shop";
 import { siteUrl } from "@/lib/site";
@@ -44,7 +55,16 @@ export default async function CarPage({ params }: { params: Params }) {
   const isBike = car.vehicleType === "bike";
   const base = isBike ? "/bikes" : "/cars";
   const isPrivate = car.seller.type === "private";
-  const settings = await settingsService.get().catch(() => null);
+  const trustTarget = isPrivate ? { type: "member" as const, id: car.sellerId || "" } : { type: "dealer" as const, id: car.branch?.code || "" };
+  const [settings, history, finance, trust, token, { t }] = await Promise.all([
+    settingsService.get().catch(() => null),
+    historyService.report(car._id).catch(() => null),
+    settingsService.finance(),
+    trustTarget.id ? reviewService.trust(trustTarget.type, trustTarget.id).catch(() => null) : Promise.resolve(null),
+    isPrivate ? Promise.resolve(null) : tokenService.publicInfo().catch(() => null),
+    getT(),
+  ]);
+  const embed = videoEmbed(car.videoUrl);
   const url = `${siteUrl()}${base}/${car._id}`;
   const waNumber = isPrivate ? car.seller.phone : settings?.whatsapp || car.branch?.phone || settings?.phone;
   const wa = whatsappLink(waNumber, `Hi, I'm interested in the ${car.title} listed for ${formatPKR(car.price)}: ${url}`);
@@ -94,6 +114,7 @@ export default async function CarPage({ params }: { params: Params }) {
 
   return (
     <section className="site-section mk-wrap">
+      <TrackView id={car._id} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       <nav className="mk-crumbs">
         <Link href={base}>{isBike ? "Bikes" : "Cars"}</Link> › <Link href={`${base}?make=${encodeURIComponent(car.make)}`}>{car.make}</Link> ›{" "}
@@ -104,12 +125,25 @@ export default async function CarPage({ params }: { params: Params }) {
         <div>
           <Gallery photos={car.photos} title={car.title} />
 
+          {car.videoUrl ? (
+            <div className="site-card mk-block">
+              <h3>{t("car.video")}</h3>
+              {embed ? (
+                <div className="mk-video">
+                  <iframe src={embed} title={`${car.title} video`} loading="lazy" allow="encrypted-media; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />
+                </div>
+              ) : (
+                <a href={car.videoUrl} target="_blank" rel="noopener noreferrer nofollow" className="site-link">Watch the video ↗</a>
+              )}
+            </div>
+          ) : null}
+
           <div className="site-card mk-block">
             <SpecGlance v={car} />
           </div>
 
           <div className="site-card mk-block">
-            <h3>Specifications</h3>
+            <h3>{t("car.specs")}</h3>
             <dl className="mk-specs">
               {specs.filter(([, v]) => v).map(([k, v]) => (
                 <div key={k}><dt>{k}</dt><dd>{v}</dd></div>
@@ -120,21 +154,41 @@ export default async function CarPage({ params }: { params: Params }) {
 
           {car.features.length ? (
             <div className="site-card mk-block">
-              <h3>Features</h3>
+              <h3>{t("car.features")}</h3>
               <FeatureChecklist features={car.features} kind={car.vehicleType} />
             </div>
           ) : null}
 
           {car.description ? (
             <div className="site-card mk-block">
-              <h3>{isPrivate ? "About this vehicle" : "Seller's comments"}</h3>
+              <h3>{isPrivate ? t("car.about") : t("car.comments")}</h3>
               <p style={{ whiteSpace: "pre-line" }}>{car.description}</p>
+            </div>
+          ) : null}
+
+          <div className="site-card mk-block">
+            <h3>{t("car.cost")}</h3>
+            <OwnershipCost
+              costs={finance.costs}
+              banks={finance.banks}
+              kind={car.vehicleType}
+              price={car.price}
+              engineCc={car.engineCc}
+              fuel={car.fuel}
+              fuelAverage={typeof car.specs.fuelAverageCity === "number" ? car.specs.fuelAverageCity : undefined}
+            />
+          </div>
+
+          {history ? (
+            <div className="site-card mk-block">
+              <h3>{t("car.history")}</h3>
+              <HistoryCheck report={history} />
             </div>
           ) : null}
 
           {car.inspection ? (
             <div className="site-card mk-block">
-              <h3>Inspection report</h3>
+              <h3>{t("car.inspection")}</h3>
               <InspectionReport inspection={car.inspection} />
             </div>
           ) : null}
@@ -144,8 +198,9 @@ export default async function CarPage({ params }: { params: Params }) {
           <div className="site-card">
             <h1 className="mk-title">{car.title}</h1>
             <SaveCompareButtons id={car._id} type={car.vehicleType} variant="detail" />
+            <ShareButton title={car.title} text={`${car.title} — ${formatPKR(car.price)}`} label={t("car.share")} />
             <div className="mk-price">{formatPKR(car.price)}</div>
-            <div className="mk-muted">{formatPKRShort(car.price)}</div>
+            <div className="mk-muted">{formatPKRShort(car.price)} <PriceDropTag drop={car.priceDrop} price={car.price} />{car.priceDrop ? <span className="mk-was"> was {formatPKR(car.priceDrop.from)}</span> : null}</div>
             <div className="mk-badges" style={{ margin: "10px 0" }}>
               {car.featured ? <span className="mk-ribbon static">Featured</span> : null}
               {car.status === "reserved" ? <span className="mk-reserved static">Reserved — join the waitlist</span> : null}
@@ -153,14 +208,15 @@ export default async function CarPage({ params }: { params: Params }) {
               <PriceBadge insight={car.insight} />
             </div>
             {car.insight ? <PriceMeter insight={car.insight} price={car.price} /> : null}
+            <WatchPriceButton listingId={car._id} />
           </div>
 
           {isPrivate ? (
             <div className="site-card">
-              <h3>Private seller</h3>
+              <h3>{t("car.privateSeller")}</h3>
               <p><b>{car.seller.name}</b>{car.city ? ` · ${car.city}` : ""}</p>
-              {car.seller.memberSince ? <p className="mk-muted">On the site since {new Date(car.seller.memberSince).toLocaleDateString("en-GB", { month: "short", year: "numeric" })}</p> : null}
               {car.negotiable ? <p className="mk-muted">Price is negotiable</p> : null}
+              {trust ? <TrustCard trust={trust} targetType="member" targetId={trustTarget.id} name={car.seller.name || "this seller"} /> : null}
               {car.seller.phone ? <ShowPhone phone={car.seller.phone} /> : null}
               {wa ? <a className="mk-wa" href={wa} target="_blank" rel="noopener noreferrer">WhatsApp the seller</a> : null}
               <InquiryForm listingId={car._id} privateSeller />
@@ -171,26 +227,40 @@ export default async function CarPage({ params }: { params: Params }) {
             </div>
           ) : (
             <div className="site-card">
-              <h3>Contact the dealer</h3>
+              <h3>{t("car.contactDealer")}</h3>
               {car.branch ? <p className="mk-muted">{car.branch.name}{car.branch.address ? ` · ${car.branch.address}` : ""}</p> : null}
+              {trust ? <TrustCard trust={trust} targetType="dealer" targetId={trustTarget.id} name={car.branch?.name || "the showroom"} /> : null}
               {wa ? <a className="mk-wa" href={wa} target="_blank" rel="noopener noreferrer">Ask on WhatsApp</a> : null}
               <InquiryForm listingId={car._id} phone={car.branch?.phone} />
             </div>
           )}
 
+          {token?.enabled && car.status === "in_stock" ? (
+            <div className="site-card">
+              <h3>{t("car.token")}</h3>
+              <SafeToken vehicleId={car._id} price={car.price} instructions={token.instructions} holdDays={token.holdDays} />
+            </div>
+          ) : null}
+
           <div className="site-card">
-            <h3>{isBike ? "Bike" : "Car"} finance calculator</h3>
-            <EmiCalculator price={car.price} />
+            <h3>{t("car.book")}</h3>
+            <BookingWidget listingId={car._id} types={isPrivate ? ["video_call", "inspection"] : ["test_drive", "video_call"]} />
+          </div>
+
+          <div className="site-card">
+            <h3>{t("car.banks")}</h3>
+            <BankLease banks={finance.banks} price={car.price} carYear={car.year} />
           </div>
         </aside>
       </div>
 
       {similar.length ? (
         <div className="mk-block">
-          <h3>Similar cars</h3>
+          <h3>{t("car.similar")}</h3>
           <div className="mk-grid">{similar.map((s) => <ListingCard key={s._id} car={s} />)}</div>
         </div>
       ) : null}
+      <RecentlyViewed title="Recently viewed" exclude={car._id} />
     </section>
   );
 }
