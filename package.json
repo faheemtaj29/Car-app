@@ -1,0 +1,33 @@
+{
+  "name": "auto-marketplace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Car & bike dealership, parts & accessories shop and classified ads with inventory and double-entry accounting.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "node scripts/e2e/marketplace.mjs",
+    "test:e2e:reset": "node scripts/e2e/reset-test-db.cjs"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.2.8",
+    "mongoose": "^9.9.2",
+    "next": "16.3.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.1",
+    "typescript": "^5"
+  }
+}
