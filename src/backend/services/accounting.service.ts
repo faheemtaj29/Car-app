@@ -5,7 +5,7 @@
 import { dbConnect } from "@/backend/config/database";
 import { Account, AccountingCounter, Voucher } from "@/backend/models/Accounting";
 import { LedgerEntry, type LedgerSource } from "@/backend/models/Ledger";
-import { Settings } from "@/backend/models/Settings";
+import { Settings, ensureSettings } from "@/backend/models/Settings";
 import { ServiceError } from "@/backend/types";
 import type { SessionUser } from "@/backend/types";
 import { recordAudit, getAuditTrail } from "@/backend/lib/audit";
@@ -166,12 +166,7 @@ function round(value: number) {
 
 async function loadFinanceSettings() {
   await dbConnect();
-  let doc = await Settings.findOne().lean();
-  if (!doc) {
-    const created = await Settings.create({});
-    doc = created.toObject();
-  }
-  return doc;
+  return ensureSettings();
 }
 
 export function calcTax(
@@ -306,7 +301,7 @@ async function nextVoucherNumber(type: string, branchCode: string, date: Date) {
   const counter = await AccountingCounter.findByIdAndUpdate(
     key,
     { $inc: { seq: 1 } },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
+    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
   );
   return `${prefix}-${branch}-${year}-${String(counter.seq).padStart(5, "0")}`;
 }
@@ -1329,7 +1324,7 @@ export const accountingService = {
     return LedgerEntry.findOneAndUpdate(
       { sourceType: post.sourceType, sourceId: post.sourceId },
       payload,
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
     );
   },
 
@@ -1420,7 +1415,7 @@ export const accountingService = {
         reconciled,
         reconciledAt: reconciled ? new Date() : null,
       },
-      { new: true }
+      { returnDocument: "after" }
     );
     if (!item) throw new ServiceError("NOT_FOUND", "Entry not found", 404);
     return item;

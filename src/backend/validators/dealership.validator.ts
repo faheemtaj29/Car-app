@@ -8,6 +8,7 @@ import {
   VEHICLE_STATUSES,
   isValidVin,
 } from "@/lib/dealership";
+import { cleanSpecs } from "@/lib/vehicleSpecs";
 
 const money = z.coerce.number().min(0).default(0);
 const optionalMoney = z.coerce.number().min(0).optional();
@@ -44,7 +45,8 @@ export const vehicleSchema = z.object({
     )
     .max(20)
     .default([]),
-  features: z.array(z.string().trim().min(1)).max(60).default([]),
+  features: z.array(z.string().trim().min(1).max(60)).max(150).default([]),
+  specs: z.record(z.string(), z.unknown()).optional(),
   acquiredFrom: z.string().optional(),
   acquiredAt: z.string().optional(),
   notes: z.string().optional(),
@@ -52,7 +54,7 @@ export const vehicleSchema = z.object({
   featured: z.boolean().default(false),
   city: z.string().trim().optional(),
   description: z.string().max(4000).optional(),
-});
+}).transform((d) => ({ ...d, specs: cleanSpecs(d.specs, d.vehicleType) }));
 
 const score = z.coerce.number().min(0).max(10);
 

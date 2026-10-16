@@ -199,7 +199,7 @@ check("member photo upload", sup.status === 201, sup.data.error || sup.data.url)
 r = await new Client("anon").req("POST", "/api/site/member/upload", undefined, { form: fd });
 check("anonymous upload refused", r.status === 401);
 
-const ad = { vehicleType: "bike", make: "Honda", model: "CG 125", variant: "Self Start", year: 2022, mileage: 18000, engineCc: 125, fuel: "Petrol", bodyType: "Standard", condition: "used", city: "Karachi", listPrice: 285000, negotiable: true, description: "Genuine condition", photos: [sup.data.url], features: ["Self start"], sellerName: "Bilal", sellerPhone: "0333-5556666", showPhone: true };
+const ad = { vehicleType: "bike", make: "Honda", model: "CG 125", variant: "Self Start", year: 2022, mileage: 18000, engineCc: 125, fuel: "Petrol", bodyType: "Standard", condition: "used", city: "Karachi", listPrice: 285000, negotiable: true, description: "Genuine condition", photos: [sup.data.url], features: ["Self start", "Front disc brake"], specs: { startType: "Self start", stroke: "4-stroke", ownership: "First owner", seats: 5, hack: "x" }, sellerName: "Bilal", sellerPhone: "0333-5556666", showPhone: true };
 r = await seller.req("POST", "/api/site/member/ads", { ...ad, photos: [] });
 check("ad needs a photo", r.status === 400, r.data.error);
 r = await seller.req("POST", "/api/site/member/ads", { ...ad, photos: ["javascript:alert(1)"] });
@@ -213,6 +213,9 @@ r = await staff.req("GET", "/api/shop/classifieds?status=pending");
 check("staff review queue has the ad", r.data.ads?.some((a) => a._id === adId));
 r = await staff.req("POST", `/api/shop/classifieds/${adId}`, { action: "approve" });
 check("approve ad", r.data.ad?.status === "active", r.data.error);
+r = await buyer.req("GET", "/api/site/cars?type=bike&seller=private");
+const pubAd = r.data.listings?.[0];
+check("bike ad specs saved; car-only & unknown keys dropped", pubAd?.specs?.startType === "Self start" && pubAd?.specs?.ownership === "First owner" && pubAd?.specs?.seats === undefined && pubAd?.specs?.hack === undefined, JSON.stringify(pubAd?.specs));
 
 // dealer bike + car in stock to test the merged search
 r = await staff.req("POST", "/api/dealership/vehicles", { vehicleType: "bike", make: "Yamaha", model: "YBR 125", year: 2023, mileage: 5000, condition: "used", status: "in_stock", purchaseCost: 300000, listPrice: 360000, floorPrice: 0, published: true, photos: [img], features: [], city: "Lahore" });
@@ -302,6 +305,33 @@ check("Vehicle Sales = 5,120,000", row("41010101").credit === 5120000, JSON.stri
 check("Cost of Vehicles Sold = 4,500,000", row("52010102").debit === 4500000, JSON.stringify(row("52010102")));
 check("Customer Deposits cleared to 0", !row("21040101").debit && !row("21040101").credit, JSON.stringify(row("21040101")));
 check("Vehicle Inventory = 6,300,000 (unsold bike + Civic)", row("11040101").debit === 6300000, JSON.stringify(row("11040101")));
+
+// ---------- detailed specs & features
+const pradoSpecs = { assembly: "Imported", importYear: 2021, importedFrom: "Japan", ownership: "First owner", accidentHistory: "No accident", paint: "Total genuine",
+  driveType: "4WD", seats: 7, doors: 5, horsepower: 201, fuelAverageCity: 8, originalBook: true, tokenTaxPaidUpTo: 2026, keys: 2,
+  seats_bad: 1, startType: "Kick start", tyreLife: 150, frontBrakes: "Rocket" };
+r = await staff.req("POST", "/api/dealership/vehicles", { make: "Toyota", model: "Land Cruiser Prado", variant: "TX 2.7", year: 2018, mileage: 52000, condition: "used", status: "in_stock",
+  purchaseCost: 0, listPrice: 18500000, floorPrice: 0, published: true, photos: [img], city: "Islamabad", fuel: "Petrol", transmission: "Automatic", engineCc: 2700, bodyType: "SUV",
+  specs: pradoSpecs, features: ["Sunroof", "Push start", "ABS", "Rear camera", "Cruise control", "Driver airbag", "Fridge in console"] });
+const prado = r.data.vehicle;
+check("vehicle with detailed specs saved", r.status === 201 && prado?.specs?.assembly === "Imported" && prado?.specs?.seats === 7 && prado?.specs?.originalBook === true, `${r.status} ${r.data.error || JSON.stringify(prado?.specs)}`);
+check("specs cleaned: bike-only, unknown, out-of-range and bad options dropped", prado && !("startType" in prado.specs) && !("seats_bad" in prado.specs) && !("tyreLife" in prado.specs) && !("frontBrakes" in prado.specs), JSON.stringify(prado?.specs));
+const pradoPage = await (await buyer.req("GET", `/cars/${prado?._id}`, undefined, { raw: true })).text();
+check("detail page shows grouped specs", ["Ownership &amp; history", "Documents &amp; registration", "Engine &amp; performance", "First owner", "4WD", "201 hp"].every((x) => pradoPage.includes(x)));
+check("detail page shows grouped features + extras", pradoPage.includes("Comfort &amp; convenience") && pradoPage.includes("Fridge in console") && pradoPage.includes("Not included"));
+check("detail page JSON-LD has seats & drive", pradoPage.includes('"seatingCapacity":7') && pradoPage.includes('"driveWheelConfiguration":"4WD"'));
+r = await buyer.req("GET", "/api/site/cars?type=car&assembly=Imported&firstOwner=1&accidentFree=1&genuinePaint=1");
+check("filter: imported, first owner, accident-free, genuine paint", r.data.total === 1 && r.data.listings[0]._id === prado?._id, `total=${r.data.total}`);
+r = await buyer.req("GET", "/api/site/cars?type=car&feat=sunroof,Push%20start");
+check("filter: must-have features (case-insensitive)", r.data.total === 1, `total=${r.data.total}`);
+r = await buyer.req("GET", "/api/site/cars?type=car&feat=Sunroof,Navigation");
+check("filter: missing feature excludes", r.data.total === 0, `total=${r.data.total}`);
+r = await staff.req("POST", "/api/dealership/vehicles", { make: "Suzuki", model: "Alto", year: 2023, mileage: 9000, condition: "used", status: "in_stock", purchaseCost: 0, listPrice: 2900000, floorPrice: 0, published: true, photos: [img], city: "Lahore", specs: { assembly: "Local", ownership: "Second owner", seats: 4 }, features: ["Power steering", "Navigation"] });
+const altoId = r.data.vehicle?._id;
+const cmp = await (await buyer.req("GET", `/compare?ids=${prado?._id},${altoId}`, undefined, { raw: true })).text();
+check("compare shows spec sections & feature matrix", cmp.includes("Ownership &amp; history") && cmp.includes("Feature by feature") && cmp.includes("Fridge in console"));
+r = await staff.req("PUT", `/api/dealership/vehicles/${prado?._id}`, { ...prado, specs: { ...prado.specs, seats: 8 }, features: [...prado.features, "Navigation"] });
+check("edit keeps & updates specs", r.status === 200 && r.data.vehicle?.specs?.seats === 8 && r.data.vehicle?.specs?.driveType === "4WD", `${r.status} ${r.data.error || ""}`);
 
 // login lockout
 const lock = new Client("lock");

@@ -4,11 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import { EmptyState, Panel } from "@/components/ui";
 import { prettyDate } from "@/lib/format";
 import { AD_STATUSES } from "@/lib/shop";
+import { FeatureChecklist, SpecTables } from "@/components/VehicleSpecsView";
 import { Pill, Sheet, api, label, pkr } from "./shared";
 
 type Ad = {
   _id: string; vehicleType: "car" | "bike"; make: string; model: string; variant?: string; year: number; mileage: number;
-  city: string; listPrice: number; negotiable: boolean; description?: string; photos: string[]; features: string[];
+  city: string; listPrice: number; negotiable: boolean; description?: string; photos: string[]; features: string[]; specs?: Record<string, string | number | boolean>;
   sellerName: string; sellerPhone: string; status: string; rejectReason?: string; featured: boolean;
   createdAt: string; publishedAt?: string; expiresAt?: string; views: number; contacts: number; reviewedBy?: string;
   fuel?: string; transmission?: string; engineCc?: number; color?: string; registeredIn?: string;
@@ -119,7 +120,8 @@ export function DealershipClassifieds() {
               </dl>
               <div>
                 {open.description ? <p style={{ whiteSpace: "pre-line" }}>{open.description}</p> : <p className="muted">No description.</p>}
-                {open.features.length ? <div className="chips">{open.features.map((f) => <span key={f} className="filter-chip">{f}</span>)}</div> : null}
+                <SpecTables specs={open.specs} kind={open.vehicleType} />
+                <FeatureChecklist features={open.features} kind={open.vehicleType} />
                 {open.rejectReason ? <div className="alert err">{open.rejectReason}</div> : null}
               </div>
             </div>

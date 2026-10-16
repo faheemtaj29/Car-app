@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import { dbConnect } from "@/backend/config/database";
-import { Settings, type ISettings } from "@/backend/models/Settings";
+import { Settings, ensureSettings, type ISettings } from "@/backend/models/Settings";
 import { DEFAULT_THEME } from "@/lib/theme";
 import type { settingsSchema } from "@/backend/validators/erp.validator";
 
@@ -11,8 +11,7 @@ export const settingsService = {
   /** The singleton settings document, created with defaults on first use. */
   async get(): Promise<ISettings> {
     await dbConnect();
-    let doc = await Settings.findOne().lean<ISettings>();
-    if (!doc) doc = (await Settings.create({})).toObject() as ISettings;
+    const doc = await ensureSettings();
     return {
       ...doc,
       branches: doc.branches?.length ? doc.branches : [{ code: "MAIN", name: "Main Showroom" }],
@@ -22,13 +21,13 @@ export const settingsService = {
 
   async update(data: SettingsInput) {
     await dbConnect();
-    await this.get();
+    const { _id } = await ensureSettings();
     const branches = data.branches.map((b) => ({ ...b, code: b.code.toUpperCase().trim() }));
     const codes = new Set(branches.map((b) => b.code));
     if (codes.size !== branches.length) throw new Error("Branch codes must be unique");
     const defaultBranchCode = data.defaultBranchCode.toUpperCase();
     return Settings.findOneAndUpdate(
-      {},
+      { _id },
       {
         $set: {
           ...data,
@@ -40,14 +39,14 @@ export const settingsService = {
           ...(data.theme ? { theme: { ...DEFAULT_THEME, ...data.theme } } : {}),
         },
       },
-      { new: true }
+      { returnDocument: "after" }
     ).lean();
   },
 
   async addOption(key: OptionKey, value: string) {
-    await this.get(); // make sure the document exists before $addToSet
+    const { _id } = await ensureSettings();
     const clean = value.trim();
-    await Settings.updateOne({}, { $addToSet: { [`optionLists.${key}`]: clean } });
+    await Settings.updateOne({ _id }, { $addToSet: { [`optionLists.${key}`]: clean } });
     return clean;
   },
 };

@@ -14,6 +14,8 @@ const SORTS = [
   ["year_desc", "Model year: newest"],
   ["km_asc", "Mileage: lowest"],
 ] as const;
+const CAR_MUST_HAVE = ["Push start", "Sunroof", "Navigation", "Climate control", "Rear camera", "Cruise control", "Alloy rims", "ABS", "Apple CarPlay", "LED headlights"];
+const BIKE_MUST_HAVE = ["Self start", "Front disc brake", "Alloy wheels", "Tubeless tyres", "Digital meter", "ABS"];
 const PRICE_STEPS = {
   car: [1_500_000, 2_500_000, 3_500_000, 5_000_000, 7_500_000, 10_000_000, 15_000_000, 25_000_000],
   bike: [50_000, 100_000, 150_000, 250_000, 400_000, 700_000, 1_000_000, 2_000_000],
@@ -22,9 +24,10 @@ const PRICE_STEPS = {
 /** Shared search page for /cars and /bikes: dealer stock + approved private ads. */
 export async function ListingsPage({ type, searchParams }: { type: "car" | "bike"; searchParams: Search }) {
   const raw = await searchParams;
+  // Checkbox groups (feat) arrive as repeated params; the rest are single values.
   const get = (k: string) => {
     const v = raw[k];
-    return Array.isArray(v) ? v[0] : v;
+    return Array.isArray(v) ? (k === "feat" ? v.join(",") : v[0]) : v;
   };
   const filters = { ...parseListingFilters(get), type };
   const base = type === "bike" ? "/bikes" : "/cars";
@@ -39,8 +42,8 @@ export async function ListingsPage({ type, searchParams }: { type: "car" | "bike
   const pageHref = (p: number) => {
     const qs = new URLSearchParams();
     Object.entries(raw).forEach(([k, v]) => {
-      const val = Array.isArray(v) ? v[0] : v;
-      if (val && k !== "page") qs.set(k, val);
+      if (k === "page") return;
+      (Array.isArray(v) ? v : [v]).forEach((val) => val && qs.append(k, val));
     });
     qs.set("page", String(p));
     return `${base}?${qs.toString()}`;
@@ -142,6 +145,22 @@ export async function ListingsPage({ type, searchParams }: { type: "car" | "bike
             </label>
           </div>
           <label className="mk-check"><input type="checkbox" name="inspected" value="1" defaultChecked={filters.inspected} /> Inspected cars only</label>
+          <label>Assembly
+            <select name="assembly" defaultValue={filters.assembly || ""}>
+              <option value="">Any</option>
+              <option>Local</option>
+              <option>Imported</option>
+            </select>
+          </label>
+          <label className="mk-check"><input type="checkbox" name="firstOwner" value="1" defaultChecked={filters.firstOwner} /> First owner</label>
+          <label className="mk-check"><input type="checkbox" name="accidentFree" value="1" defaultChecked={filters.accidentFree} /> Accident-free</label>
+          <label className="mk-check"><input type="checkbox" name="genuinePaint" value="1" defaultChecked={filters.genuinePaint} /> Total genuine paint</label>
+          <details className="mk-feat-filter" open={Boolean(filters.features?.length)}>
+            <summary>Must-have features{filters.features?.length ? ` (${filters.features.length})` : ""}</summary>
+            {(type === "bike" ? BIKE_MUST_HAVE : CAR_MUST_HAVE).map((x) => (
+              <label key={x} className="mk-check"><input type="checkbox" name="feat" value={x} defaultChecked={filters.features?.includes(x)} /> {x}</label>
+            ))}
+          </details>
           <label>Sort by
             <select name="sort" defaultValue={filters.sort || "newest"}>
               {SORTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}

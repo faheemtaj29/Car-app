@@ -114,7 +114,7 @@ async function nextStockNumber(type: StockVoucherType, branchCode: string, date:
   const counter = await AccountingCounter.findByIdAndUpdate(
     `${prefix}:${branch}:${year}`,
     { $inc: { seq: 1 } },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
+    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
   );
   return `${prefix}-${branch}-${year}-${String(counter.seq).padStart(5, "0")}`;
 }

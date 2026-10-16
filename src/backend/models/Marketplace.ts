@@ -74,6 +74,8 @@ export interface IClassifiedAd {
   description?: string;
   photos: string[];
   features: string[];
+  /** Detailed specs keyed by the catalogue in lib/vehicleSpecs. */
+  specs?: Record<string, string | number | boolean>;
   sellerName: string;
   sellerPhone: string;
   showPhone: boolean;
@@ -122,6 +124,7 @@ const ClassifiedAdSchema = new Schema<IClassifiedAd>(
     description: String,
     photos: { type: [String], default: [] },
     features: { type: [String], default: [] },
+    specs: { type: Schema.Types.Mixed, default: undefined },
     sellerName: { type: String, required: true, trim: true },
     sellerPhone: { type: String, required: true, trim: true },
     showPhone: { type: Boolean, default: true },

@@ -84,7 +84,7 @@ const LISTED = { "shop.published": true, salePrice: { $gt: 0 } };
 
 async function nextOrderNumber() {
   const year = new Date().getFullYear();
-  const c = await AccountingCounter.findByIdAndUpdate(`SHOP:${year}`, { $inc: { seq: 1 } }, { upsert: true, new: true, setDefaultsOnInsert: true });
+  const c = await AccountingCounter.findByIdAndUpdate(`SHOP:${year}`, { $inc: { seq: 1 } }, { upsert: true, returnDocument: "after", setDefaultsOnInsert: true });
   return `SO-${year}-${String(c.seq).padStart(5, "0")}`;
 }
 
@@ -242,7 +242,7 @@ export const shopService = {
       claimed = await Coupon.findOneAndUpdate(
         { _id: check.coupon._id, active: true, $or: [{ usageLimit: 0 }, { usedCount: { $lt: check.coupon.usageLimit } }] },
         { $inc: { usedCount: 1 } },
-        { new: true }
+        { returnDocument: "after" }
       ).lean<Doc<ICoupon>>();
       if (!claimed) throw new ServiceError("CONFLICT", "This coupon has just been fully used", 409);
       discount = check.discount;
@@ -377,14 +377,14 @@ export const shopService = {
       throw new ServiceError("VALIDATION", "End date is before the start date", 400);
     }
     if (!id) return Coupon.create(payload);
-    const updated = await Coupon.findByIdAndUpdate(id, { $set: payload }, { new: true });
+    const updated = await Coupon.findByIdAndUpdate(id, { $set: payload }, { returnDocument: "after" });
     if (!updated) throw new ServiceError("NOT_FOUND", "Coupon not found", 404);
     return updated;
   },
 
   async updateSettings(data: z.infer<typeof shopSettingsSchema>) {
     await dbConnect();
-    return ShopSettings.findOneAndUpdate({ key: "default" }, { $set: { ...data, fulfilmentBranch: data.fulfilmentBranch.toUpperCase() } }, { upsert: true, new: true }).lean();
+    return ShopSettings.findOneAndUpdate({ key: "default" }, { $set: { ...data, fulfilmentBranch: data.fulfilmentBranch.toUpperCase() } }, { upsert: true, returnDocument: "after" }).lean();
   },
 
   async act(id: string, input: z.infer<typeof orderActionSchema>, actor: SessionUser) {

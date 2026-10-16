@@ -29,7 +29,7 @@ export async function shopSettings() {
   const created = await ShopSettings.findOneAndUpdate(
     { key: "default" },
     { $setOnInsert: { key: "default" } },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
+    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
   ).lean();
   return created as unknown as import("@/backend/models/Marketplace").IShopSettings;
 }

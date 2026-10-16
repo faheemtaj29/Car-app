@@ -5,6 +5,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ImageUploader } from "@/components/ImageUploader";
 import { formatPKR } from "@/lib/dealership";
 import { AD_LIMITS, BODY_TYPES, type VehicleType } from "@/lib/shop";
+import { VehicleSpecsEditor } from "@/components/VehicleSpecsEditor";
 
 type Me = { member: { _id: string; name: string; phone: string; email?: string; city?: string; createdAt: string }; orders: OrderRow[] };
 type OrderRow = {
@@ -15,7 +16,7 @@ type Ad = {
   _id: string; vehicleType: VehicleType; make: string; model: string; variant?: string; year: number; mileage: number;
   fuel?: string; transmission?: string; engineCc?: number; color?: string; bodyType?: string; condition: "new" | "used";
   registeredIn?: string; city: string; listPrice: number; negotiable: boolean; description?: string; photos: string[];
-  features: string[]; sellerName: string; sellerPhone: string; showPhone: boolean; status: string; rejectReason?: string;
+  features: string[]; specs?: Record<string, string | number | boolean>; sellerName: string; sellerPhone: string; showPhone: boolean; status: string; rejectReason?: string;
   expiresAt?: string; views: number; contacts: number;
   messages: { _id: string; name: string; phone: string; message?: string; offerPrice?: number; at: string; read: boolean }[];
 };
@@ -79,8 +80,8 @@ export function AuthPanel({ onDone, intro }: { onDone: () => void; intro?: strin
 
 /* ---------------------------------------------------------- ad form */
 
-type AdForm = Omit<Ad, "_id" | "status" | "rejectReason" | "expiresAt" | "views" | "contacts" | "messages" | "year" | "mileage" | "listPrice" | "engineCc" | "features"> & {
-  year: string; mileage: string; listPrice: string; engineCc: string; features: string;
+type AdForm = Omit<Ad, "_id" | "status" | "rejectReason" | "expiresAt" | "views" | "contacts" | "messages" | "year" | "mileage" | "listPrice" | "engineCc" | "specs"> & {
+  year: string; mileage: string; listPrice: string; engineCc: string; specs: Record<string, string | number | boolean>;
 };
 
 function blankAd(type: VehicleType, me?: Me["member"]): AdForm {
@@ -88,7 +89,7 @@ function blankAd(type: VehicleType, me?: Me["member"]): AdForm {
     vehicleType: type, make: "", model: "", variant: "", year: String(new Date().getFullYear() - 3), mileage: "",
     fuel: "Petrol", transmission: type === "bike" ? "Manual" : "Automatic", engineCc: "", color: "", bodyType: "",
     condition: "used", registeredIn: "", city: me?.city || "", listPrice: "", negotiable: true, description: "",
-    photos: [], features: "", sellerName: me?.name || "", sellerPhone: me?.phone || "", showPhone: true,
+    photos: [], features: [], specs: {}, sellerName: me?.name || "", sellerPhone: me?.phone || "", showPhone: true,
   };
 }
 
@@ -97,7 +98,7 @@ function adToForm(a: Ad): AdForm {
     ...a, variant: a.variant || "", color: a.color || "", bodyType: a.bodyType || "", registeredIn: a.registeredIn || "",
     description: a.description || "", fuel: a.fuel || "", transmission: a.transmission || "",
     year: String(a.year), mileage: String(a.mileage), listPrice: String(a.listPrice), engineCc: a.engineCc ? String(a.engineCc) : "",
-    features: a.features.join(", "),
+    specs: a.specs || {},
   };
 }
 
@@ -120,7 +121,6 @@ export function AdEditor({ initial, editId, onSaved }: { initial: AdForm; editId
         mileage: Number(f.mileage || 0),
         listPrice: Number(f.listPrice || 0),
         engineCc: f.engineCc ? Number(f.engineCc) : undefined,
-        features: f.features.split(",").map((x) => x.trim()).filter(Boolean),
       };
       const res = await call<{ ad: { status: string } }>(editId ? `/api/site/member/ads/${editId}` : "/api/site/member/ads", editId ? "PUT" : "POST", body);
       onSaved(res.ad.status);
@@ -183,7 +183,8 @@ export function AdEditor({ initial, editId, onSaved }: { initial: AdForm; editId
           </select>
         </label>
       </div>
-      <label className="site-form-wide">Features (comma separated)<input value={f.features} onChange={(e) => set("features", e.target.value)} placeholder="Alloy rims, Navigation, Immobilizer" /></label>
+      <div className="site-form-section">Specifications & features <span className="mk-muted">(optional — detailed ads sell faster)</span></div>
+      <VehicleSpecsEditor kind={f.vehicleType} specs={f.specs} features={f.features} onSpecs={(s) => set("specs", s)} onFeatures={(x) => set("features", x)} />
       <label className="site-form-wide">Description<textarea rows={4} value={f.description} onChange={(e) => set("description", e.target.value)} placeholder="Condition, service history, reason for selling…" /></label>
 
       <div className="site-form-section">Price & contact</div>

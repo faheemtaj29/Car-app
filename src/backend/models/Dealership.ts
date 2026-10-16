@@ -55,6 +55,8 @@ export interface IVehicle {
   floorPrice: number;
   photos: string[];
   features: string[];
+  /** Detailed specs keyed by the catalogue in lib/vehicleSpecs. */
+  specs?: Record<string, string | number | boolean>;
   acquiredFrom?: string;
   acquiredAt: Date;
   soldAt?: Date;
@@ -120,6 +122,7 @@ const VehicleSchema = new Schema<IVehicle>(
     floorPrice: { type: Number, default: 0, min: 0 },
     photos: { type: [String], default: [] },
     features: { type: [String], default: [] },
+    specs: { type: Schema.Types.Mixed, default: undefined },
     acquiredFrom: String,
     acquiredAt: { type: Date, default: Date.now },
     soldAt: Date,

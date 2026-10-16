@@ -57,7 +57,7 @@ async function nextSeq(key: string) {
   const counter = await AccountingCounter.findByIdAndUpdate(
     key,
     { $inc: { seq: 1 } },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
+    { upsert: true, returnDocument: "after", setDefaultsOnInsert: true }
   );
   return counter.seq as number;
 }
@@ -631,7 +631,7 @@ async function reserveVehicle(deal: Doc<IDealerDeal>) {
       $or: [{ status: { $ne: "reserved" } }, { dealId: deal._id }],
     },
     { $set: { status: "reserved", dealId: deal._id } },
-    { new: true }
+    { returnDocument: "after" }
   );
   if (won) return;
   const vehicle = await Vehicle.findById(deal.vehicleId).select("stockNo status").lean<{ stockNo: string; status: string }>();

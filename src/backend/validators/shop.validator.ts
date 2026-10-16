@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { cleanSpecs } from "@/lib/vehicleSpecs";
 import {
   AD_LIMITS,
   CART_LIMITS,
@@ -60,11 +61,12 @@ export const classifiedAdSchema = z.object({
   negotiable: z.boolean().default(true),
   description: z.string().trim().max(3000).optional(),
   photos: z.array(imageUrl).min(1, "Add at least one photo").max(AD_LIMITS.maxPhotos),
-  features: z.array(z.string().trim().min(1).max(40)).max(40).default([]),
+  features: z.array(z.string().trim().min(1).max(60)).max(150).default([]),
+  specs: z.record(z.string(), z.unknown()).optional(),
   sellerName: z.string().trim().min(2).max(80),
   sellerPhone: phone,
   showPhone: z.boolean().default(true),
-});
+}).transform((d) => ({ ...d, specs: cleanSpecs(d.specs, d.vehicleType) }));
 
 export const adModerationSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("approve") }),

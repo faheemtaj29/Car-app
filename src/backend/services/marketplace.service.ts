@@ -38,6 +38,12 @@ export type ListingFilters = {
   maxYear?: number;
   maxKm?: number;
   inspected?: boolean;
+  assembly?: "Local" | "Imported";
+  firstOwner?: boolean;
+  accidentFree?: boolean;
+  genuinePaint?: boolean;
+  /** Must have every one of these features. */
+  features?: string[];
   sort?: string;
   page?: number;
 };
@@ -66,6 +72,7 @@ export type PublicListing = {
   price: number;
   photos: string[];
   features: string[];
+  specs: Record<string, string | number | boolean>;
   description?: string;
   featured: boolean;
   publishedAt?: string;
@@ -103,6 +110,11 @@ function baseQuery(f: ListingFilters) {
     q.year = { ...(f.minYear ? { $gte: f.minYear } : {}), ...(f.maxYear ? { $lte: f.maxYear } : {}) };
   }
   if (f.maxKm) q.mileage = { $lte: f.maxKm };
+  if (f.assembly) q["specs.assembly"] = f.assembly;
+  if (f.firstOwner) q["specs.ownership"] = "First owner";
+  if (f.accidentFree) q["specs.accidentHistory"] = "No accident";
+  if (f.genuinePaint) q["specs.paint"] = "Total genuine";
+  if (f.features?.length) q.$and = f.features.map((x) => ({ features: exact(x) }));
   if (f.q?.trim()) {
     const rx = new RegExp(esc(f.q.trim()), "i");
     q.$or = [{ make: rx }, { model: rx }, { variant: rx }, { color: rx }, { city: rx }];
@@ -208,6 +220,7 @@ function toPublic(
     price: v.listPrice || 0,
     photos: v.photos || [],
     features: v.features || [],
+    specs: v.specs || {},
     description: v.description,
     featured: Boolean(v.featured),
     publishedAt: v.publishedAt ? new Date(v.publishedAt).toISOString() : undefined,
@@ -249,6 +262,7 @@ function adToPublic(a: Doc<IClassifiedAd>, insight: PriceInsight | null): Public
     price: a.listPrice,
     photos: a.photos || [],
     features: a.features || [],
+    specs: a.specs || {},
     description: a.description,
     featured: Boolean(a.featured),
     publishedAt: a.publishedAt ? new Date(a.publishedAt).toISOString() : undefined,
@@ -465,11 +479,11 @@ export const marketplaceService = {
     const adFilter = { _id: id, status: "active", expiresAt: { $gt: new Date() } };
     const inc = { $inc: { views: 1 } };
     let row: AnyListing | null = countView
-      ? await Vehicle.findOneAndUpdate(dealerFilter, inc, { new: true }).lean<Doc<IVehicle>>()
+      ? await Vehicle.findOneAndUpdate(dealerFilter, inc, { returnDocument: "after" }).lean<Doc<IVehicle>>()
       : await Vehicle.findOne(dealerFilter).lean<Doc<IVehicle>>();
     if (!row) {
       const ad = countView
-        ? await ClassifiedAd.findOneAndUpdate(adFilter, inc, { new: true }).lean<Doc<IClassifiedAd>>()
+        ? await ClassifiedAd.findOneAndUpdate(adFilter, inc, { returnDocument: "after" }).lean<Doc<IClassifiedAd>>()
         : await ClassifiedAd.findOne(adFilter).lean<Doc<IClassifiedAd>>();
       if (ad) {
         // Buyer messages are private to the seller; never let them reach the page.
@@ -632,6 +646,11 @@ export function parseListingFilters(get: (key: string) => string | null | undefi
     maxYear: n("maxYear"),
     maxKm: n("maxKm"),
     inspected: get("inspected") === "1",
+    assembly: get("assembly") === "Local" || get("assembly") === "Imported" ? (get("assembly") as "Local" | "Imported") : undefined,
+    firstOwner: get("firstOwner") === "1",
+    accidentFree: get("accidentFree") === "1",
+    genuinePaint: get("genuinePaint") === "1",
+    features: (get("feat") || "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, 10),
     sort: str("sort"),
     page: n("page"),
   };

@@ -4,7 +4,7 @@
 import type { z } from "zod";
 import { dbConnect } from "@/backend/config/database";
 import { User } from "@/backend/models/User";
-import { Settings } from "@/backend/models/Settings";
+import { Settings, ensureSettings } from "@/backend/models/Settings";
 import { hashPassword, verifyPassword } from "@/backend/lib/password";
 import { startSession } from "@/backend/lib/cookies";
 import { ServiceError, type SessionUser } from "@/backend/types";
@@ -30,7 +30,8 @@ export const authService = {
       password: await hashPassword(data.password),
       role: "admin",
     });
-    await Settings.findOneAndUpdate({}, { $set: { businessName: data.businessName } }, { upsert: true, setDefaultsOnInsert: true });
+    const { _id } = await ensureSettings();
+    await Settings.updateOne({ _id }, { $set: { businessName: data.businessName } });
     const session = toSession(user);
     await startSession(session);
     return { user: session };

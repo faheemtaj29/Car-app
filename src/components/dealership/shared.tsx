@@ -33,6 +33,7 @@ export type Vehicle = {
   floorPrice: number;
   photos: string[];
   features: string[];
+  specs?: Record<string, string | number | boolean>;
   acquiredFrom?: string;
   acquiredAt: string;
   soldAt?: string;

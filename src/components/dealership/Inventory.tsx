@@ -1,5 +1,8 @@
 "use client";
 
+import { VehicleSpecsEditor } from "@/components/VehicleSpecsEditor";
+import { FeatureChecklist, SpecTables } from "@/components/VehicleSpecsView";
+import type { Specs } from "@/lib/vehicleSpecs";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { EmptyState, Field, ModalForm, Panel, inputClass } from "@/components/ui";
 import { prettyDate, toDateInput } from "@/lib/format";
@@ -42,7 +45,8 @@ type VehicleForm = {
   listPrice: string;
   floorPrice: string;
   photos: string;
-  features: string;
+  features: string[];
+  specs: Specs;
   acquiredFrom: string;
   acquiredAt: string;
   notes: string;
@@ -75,7 +79,8 @@ function emptyForm(branch: string): VehicleForm {
     listPrice: "",
     floorPrice: "",
     photos: "",
-    features: "",
+    features: [],
+    specs: {},
     acquiredFrom: "",
     acquiredAt: toDateInput(new Date()),
     notes: "",
@@ -109,7 +114,8 @@ function toForm(v: Vehicle): VehicleForm {
     listPrice: String(v.listPrice || ""),
     floorPrice: String(v.floorPrice || ""),
     photos: (v.photos || []).join("\n"),
-    features: (v.features || []).join(", "),
+    features: v.features || [],
+    specs: v.specs || {},
     acquiredFrom: v.acquiredFrom || "",
     acquiredAt: toDateInput(v.acquiredAt),
     notes: v.notes || "",
@@ -130,7 +136,6 @@ function fromForm(f: VehicleForm) {
     listPrice: Number(f.listPrice || 0),
     floorPrice: Number(f.floorPrice || 0),
     photos: f.photos.split(/\s+/).map((s) => s.trim()).filter(Boolean),
-    features: f.features.split(",").map((s) => s.trim()).filter(Boolean),
     stockNo: f.stockNo || undefined,
     vin: f.vin || undefined,
   };
@@ -441,8 +446,14 @@ export function DealershipInventory({
               max={20}
             />
           </Field>
-          <Field label="Features (comma separated)"><textarea className={inputClass} rows={3} value={form.features} onChange={(e) => set("features", e.target.value)} placeholder="Sunroof, Push start, Cruise control" /></Field>
         </div>
+        <VehicleSpecsEditor
+          kind={form.vehicleType}
+          specs={form.specs}
+          features={form.features}
+          onSpecs={(s) => set("specs", s)}
+          onFeatures={(x) => set("features", x)}
+        />
         <Field label="Internal notes (never shown publicly)"><textarea className={inputClass} rows={2} value={form.notes} onChange={(e) => set("notes", e.target.value)} /></Field>
         <div className="form-section-title">Marketplace listing</div>
         <div className="form-grid">
@@ -591,11 +602,8 @@ function VehicleDetail({
                   ))}
                 </div>
               ) : null}
-              {v.features.length ? (
-                <div className="chips" style={{ marginTop: 10 }}>
-                  {v.features.map((f) => <span key={f} className="filter-chip">{f}</span>)}
-                </div>
-              ) : null}
+              <SpecTables specs={v.specs} kind={v.vehicleType || "car"} />
+              <FeatureChecklist features={v.features || []} kind={v.vehicleType || "car"} />
             </div>
             <div>
               <dl className="dl-specs">

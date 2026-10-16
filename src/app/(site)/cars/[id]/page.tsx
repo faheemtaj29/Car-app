@@ -5,6 +5,7 @@ import { EmiCalculator, Gallery, InquiryForm } from "@/components/marketplace/In
 import { InspectionBadge, InspectionReport, ListingCard, PriceBadge, PriceMeter } from "@/components/marketplace/Listing";
 import { ShowPhone } from "@/components/marketplace/Interactive";
 import { SaveCompareButtons } from "@/components/marketplace/SavedClient";
+import { FeatureChecklist, SpecGlance, SpecTables } from "@/components/VehicleSpecsView";
 import { settingsService } from "@/backend/services/settings.service";
 import { whatsappLink } from "@/lib/shop";
 import { siteUrl } from "@/lib/site";
@@ -58,6 +59,13 @@ export default async function CarPage({ params }: { params: Params }) {
     mileageFromOdometer: { "@type": "QuantitativeValue", value: car.mileage, unitCode: "KMT" },
     fuelType: car.fuel,
     color: car.color,
+    vehicleTransmission: car.transmission,
+    vehicleEngine: car.engineCc ? { "@type": "EngineSpecification", engineDisplacement: { "@type": "QuantitativeValue", value: car.engineCc, unitCode: "CMQ" } } : undefined,
+    numberOfDoors: car.specs.doors,
+    seatingCapacity: car.specs.seats,
+    driveWheelConfiguration: car.specs.driveType,
+    numberOfPreviousOwners: { "First owner": 0, "Second owner": 1, "Third owner": 2 }[String(car.specs.ownership)],
+    knownVehicleDamages: car.specs.accidentHistory,
     image: car.photos.slice(0, 5).map((p) => (p.startsWith("http") ? p : `${siteUrl()}${p}`)),
     url,
     offers: {
@@ -79,7 +87,7 @@ export default async function CarPage({ params }: { params: Params }) {
     ["Body type", car.bodyType],
     ["Colour", car.color],
     ["Condition", car.condition === "certified" ? "Certified pre-owned" : car.condition === "new" ? "New" : "Used"],
-    ["Registered in", car.registeredIn],
+    ["Registered in", car.registeredIn || (car.specs.registrationCity as string | undefined)],
     ["Chassis (VIN)", car.vinMasked],
     ["Location", car.city || car.branch?.name],
   ];
@@ -97,18 +105,23 @@ export default async function CarPage({ params }: { params: Params }) {
           <Gallery photos={car.photos} title={car.title} />
 
           <div className="site-card mk-block">
+            <SpecGlance v={car} />
+          </div>
+
+          <div className="site-card mk-block">
             <h3>Specifications</h3>
             <dl className="mk-specs">
               {specs.filter(([, v]) => v).map(([k, v]) => (
                 <div key={k}><dt>{k}</dt><dd>{v}</dd></div>
               ))}
             </dl>
+            <SpecTables specs={car.specs} kind={car.vehicleType} />
           </div>
 
           {car.features.length ? (
             <div className="site-card mk-block">
               <h3>Features</h3>
-              <ul className="mk-features">{car.features.map((f) => <li key={f}>✓ {f}</li>)}</ul>
+              <FeatureChecklist features={car.features} kind={car.vehicleType} />
             </div>
           ) : null}
 

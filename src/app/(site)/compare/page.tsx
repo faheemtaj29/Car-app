@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { marketplaceService, type PublicListing } from "@/backend/services/marketplace.service";
 import { listingHref } from "@/components/marketplace/Listing";
 import { formatPKR, inspectionGrade, PRICE_RATING_LABEL } from "@/lib/dealership";
+import { SPEC_FIELDS, SPEC_GROUPS, groupFeatures, specText } from "@/lib/vehicleSpecs";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Compare vehicles", robots: { index: false } };
@@ -37,8 +38,48 @@ const ROWS: Row[] = [
   { label: "Registered in", value: (c) => c.registeredIn || "—" },
   { label: "Location", value: (c) => c.city || c.branch?.name || "—" },
   { label: "Seller", value: (c) => (c.seller.type === "dealer" ? `Dealer${c.seller.name ? ` · ${c.seller.name}` : ""}` : `Private · ${c.seller.name || ""}`) },
-  { label: "Features", value: (c) => (c.features.length ? c.features.join(", ") : "—") },
 ];
+
+/** Higher is better for these numeric specs; lower is better for none we list. */
+const HIGHER_BETTER = new Set(["fuelAverageCity", "fuelAverageHighway", "horsepower", "torque", "seats", "bootSpace", "electricRange", "tyreLife", "tokenTaxPaidUpTo", "keys", "groundClearance"]);
+const OWNERSHIP_RANK: Record<string, number> = { "First owner": 1, "Second owner": 2, "Third owner": 3, "Fourth owner or more": 4 };
+
+/** Detailed rows, only for specs at least one of the compared vehicles has. */
+function detailSections(cars: PublicListing[]): { title: string; rows: Row[] }[] {
+  const specSections = SPEC_GROUPS.map((g) => ({
+    title: g.label,
+    rows: SPEC_FIELDS.filter((f) => f.group === g.key && cars.some((c) => c.specs[f.key] !== undefined)).map<Row>((f) => ({
+      label: f.label,
+      value: (c) => specText(f, c.specs[f.key]) || "—",
+      best:
+        f.type === "number" && HIGHER_BETTER.has(f.key)
+          ? (cs) => maxBy(cs, (c) => (typeof c.specs[f.key] === "number" ? (c.specs[f.key] as number) : undefined))
+          : f.key === "ownership"
+            ? (cs) => minBy(cs, (c) => OWNERSHIP_RANK[String(c.specs.ownership)])
+            : undefined,
+    })),
+  }));
+  const kind = cars[0].vehicleType;
+  const featureRows: Row[] = groupFeatures([], kind).groups.map((g) => ({
+    label: g.label,
+    value: (c) => {
+      const got = groupFeatures(c.features, c.vehicleType).groups.find((x) => x.key === g.key);
+      const n = got ? got.items.filter((i) => i.has).length : 0;
+      return `${n} of ${g.items.length}`;
+    },
+    best: (cs) => maxBy(cs, (c) => groupFeatures(c.features, c.vehicleType).groups.find((x) => x.key === g.key)?.items.filter((i) => i.has).length),
+  }));
+  const allFeatures = [...new Set(cars.flatMap((c) => c.features))];
+  const matrix: Row[] = allFeatures.map((name) => ({
+    label: name,
+    value: (c) => (c.features.some((x) => x.toLowerCase() === name.toLowerCase()) ? "✓" : "✗"),
+  }));
+  return [
+    ...specSections,
+    { title: "Feature count", rows: featureRows },
+    { title: "Feature by feature", rows: matrix },
+  ].filter((s) => s.rows.length);
+}
 
 export default async function ComparePage({ searchParams }: { searchParams: Search }) {
   const raw = (await searchParams).ids;
@@ -71,20 +112,26 @@ export default async function ComparePage({ searchParams }: { searchParams: Sear
               </tr>
             </thead>
             <tbody>
-              {ROWS.map((r) => {
-                const best = r.best?.(cars);
-                return (
-                  <tr key={r.label}>
-                    <th scope="row">{r.label}</th>
-                    {cars.map((c) => (
-                      <td key={c._id} className={best === c._id ? "best" : undefined}>
-                        {r.value(c)}
-                        {best === c._id ? <span className="mk-best"> ✓ best</span> : null}
-                      </td>
-                    ))}
-                  </tr>
-                );
-              })}
+              {[{ title: "Overview", rows: ROWS }, ...detailSections(cars)].flatMap((sec) => [
+                <tr key={`h-${sec.title}`} className="mk-compare-section">
+                  <th colSpan={cars.length + 1}>{sec.title}</th>
+                </tr>,
+                ...sec.rows.map((r) => {
+                  const best = r.best?.(cars);
+                  const v = cars.map((c) => r.value(c));
+                  return (
+                    <tr key={`${sec.title}-${r.label}`}>
+                      <th scope="row">{r.label}</th>
+                      {cars.map((c, i) => (
+                        <td key={c._id} className={best === c._id ? "best" : v[i] === "✓" ? "yes" : v[i] === "✗" ? "no" : undefined}>
+                          {v[i]}
+                          {best === c._id ? <span className="mk-best"> ✓ best</span> : null}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                }),
+              ])}
             </tbody>
           </table>
         </div>

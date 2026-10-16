@@ -1,4 +1,4 @@
-import { Schema, models, model } from "mongoose";
+import { Schema, Types, models, model } from "mongoose";
 
 export interface IBranch {
   code: string;
@@ -100,3 +100,22 @@ const SettingsSchema = new Schema<ISettings>(
 );
 
 export const Settings = models.Settings || model<ISettings>("Settings", SettingsSchema);
+
+/**
+ * Fixed _id for the one settings document: concurrent first requests on a
+ * fresh install then collide on the key instead of creating duplicates.
+ */
+export const SETTINGS_ID = new Types.ObjectId("000000000000000000000001");
+
+/** Returns the settings document, creating it once if missing (race-safe). */
+export async function ensureSettings(): Promise<ISettings & { _id: Types.ObjectId }> {
+  const find = () => Settings.findOne().sort({ _id: 1 }).lean<ISettings & { _id: Types.ObjectId }>();
+  const existing = await find();
+  if (existing) return existing;
+  try {
+    await Settings.create({ _id: SETTINGS_ID });
+  } catch (e) {
+    if ((e as { code?: number }).code !== 11000) throw e;
+  }
+  return (await find())!;
+}
