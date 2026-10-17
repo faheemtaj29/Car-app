@@ -2991,3 +2991,6 @@ a.pay-stat:hover { box-shadow: var(--shadow-md); }
 .an-table th, .an-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
 .an-table th { color: var(--text-dim); font-weight: 600; }
 .an-sub { font-size: 13px; margin: 16px 0 8px; color: var(--text-dim); }
+
+/* Install-as-app button (shown only when the browser offers it) */
+.app-install { position: fixed; inset-inline-end: 16px; bottom: 16px; z-index: 40; box-shadow: var(--shadow-md); }

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { settingsService } from "@/backend/services/settings.service";
 import { themeCss } from "@/lib/theme";
@@ -52,10 +52,14 @@ async function brand() {
   }
 }
 
+export const viewport: Viewport = { themeColor: "#0e5c44" };
+
 export async function generateMetadata(): Promise<Metadata> {
   const b = await brand();
   return {
     title: { default: `${b.name} — ${b.tagline || "Cars & bikes"}`, template: `%s | ${b.name}` },
+    appleWebApp: { capable: true, title: b.name, statusBarStyle: "default" },
+    icons: { icon: "/icons/icon.svg", apple: "/icons/icon-192.png" },
     description: "Buy and sell used & new cars and motorbikes, inspected dealer stock, and genuine parts & accessories.",
   };
 }

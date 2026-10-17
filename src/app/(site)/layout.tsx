@@ -8,6 +8,7 @@ import { CompareTray } from "@/components/marketplace/SavedClient";
 import { HeaderBadges } from "@/components/marketplace/Alerts";
 import { LangSwitch } from "@/components/marketplace/LangSwitch";
 import { getMyCity, getT } from "@/lib/i18n.server";
+import { AppInstall } from "@/components/marketplace/AppInstall";
 import { CityPicker } from "@/components/marketplace/CityPicker";
 
 export const dynamic = "force-dynamic";
@@ -93,6 +94,7 @@ export default async function SiteLayout({ children }: { children: ReactNode }) 
         </div>
         <div className="site-copy">© {new Date().getFullYear()} {name}</div>
       </footer>
+      <AppInstall />
     </div>
   );
 }

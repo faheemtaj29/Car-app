@@ -36,6 +36,8 @@ const nextConfig: NextConfig = {
     return [
       { source: "/:path*", headers: securityHeaders },
       // Photos never change once uploaded (each gets a unique name), so browsers and CDNs may keep them a year.
+      // The service worker must be re-checked on every visit so updates reach phones.
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }, { key: "Service-Worker-Allowed", value: "/" }] },
       { source: "/uploads/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }] },
       // Back office and APIs must never be cached by a shared cache.
       { source: "/api/:path*", headers: [{ key: "Cache-Control", value: "no-store" }] },

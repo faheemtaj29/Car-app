@@ -70,3 +70,23 @@ check("city demand is compared with cars listed", (rep.demand || []).some((d) =>
 check("report holds no personal data", !/phone|cnic|passwordHash/i.test(JSON.stringify(rep)));
 res = await fetch(`${BASE}/api/analytics?days=9999`, { headers: { cookie } });
 check("an odd range falls back to 30 days", (await res.json()).days === 30);
+
+// Installable app: manifest, icons, service worker, offline page.
+res = await fetch(`${BASE}/manifest.webmanifest`);
+const mf = await res.json().catch(() => ({}));
+check("web app manifest is public and installable", res.status === 200 && mf.display === "standalone" && mf.start_url && (mf.icons || []).length >= 3, `${res.status}`);
+const sizes = new Set((mf.icons || []).map((i) => i.sizes));
+check("manifest has 192 and 512 icons plus a maskable one", sizes.has("192x192") && sizes.has("512x512") && (mf.icons || []).some((i) => i.purpose === "maskable"));
+for (const i of mf.icons || []) {
+  const r = await fetch(`${BASE}${i.src}`);
+  const b = Buffer.from(await r.arrayBuffer());
+  check(`icon loads: ${i.src}`, r.status === 200 && b.subarray(1, 4).toString() === "PNG", String(r.status));
+}
+res = await fetch(`${BASE}/sw.js`);
+const sw = await res.text();
+check("service worker is served and always re-checked", res.status === 200 && /no-cache/.test(res.headers.get("cache-control") || "") && /fetch/.test(sw));
+check("service worker never caches APIs, accounts or the back office", ["/^\\/api\\//", "/^\\/account/", "/^\\/dashboard/", "/^\\/settings/"].every((p) => sw.includes(p)));
+res = await fetch(`${BASE}/offline.html`);
+check("offline page exists", res.status === 200 && /offline/i.test(await res.text()));
+res = await fetch(`${BASE}/`);
+check("home page links the manifest and theme colour", /rel="manifest"/.test(await res.text()));
