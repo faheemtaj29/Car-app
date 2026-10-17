@@ -9,6 +9,7 @@ import {
   isValidVin,
 } from "@/lib/dealership";
 import { cleanSpecs, isVideoUrl } from "@/lib/vehicleSpecs";
+import { isHostedImage } from "@/lib/hostedImage";
 
 const money = z.coerce.number().min(0).default(0);
 const optionalMoney = z.coerce.number().min(0).optional();
@@ -41,7 +42,7 @@ export const vehicleSchema = z.object({
   floorPrice: money,
   photos: z
     .array(
-      z.string().trim().refine((v) => /^\/uploads\/[\w/.-]+$/.test(v) || /^https?:\/\/\S+$/.test(v), "Photo must be an upload or a full URL")
+      z.string().trim().refine((v) => isHostedImage(v) || /^https?:\/\/\S+$/.test(v), "Photo must be an upload or a full URL")
     )
     .max(20)
     .default([]),

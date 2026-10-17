@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isHostedImage } from "@/lib/hostedImage";
 import { cleanSpecs, isVideoUrl } from "@/lib/vehicleSpecs";
 import { fitmentSchema } from "@/backend/validators/partner.validator";
 import {
@@ -27,7 +28,7 @@ const honeypot = z.string().max(0, "Spam detected").optional().or(z.literal(""))
 const imageUrl = z
   .string()
   .trim()
-  .refine((v) => /^\/uploads\/[\w/.-]+$/.test(v) || /^https:\/\/\S+$/.test(v), "Invalid image");
+  .refine((v) => isHostedImage(v) || /^https:\/\/\S+$/.test(v), "Invalid image");
 
 export const memberRegisterSchema = z.object({
   name: z.string().trim().min(2, "Your name is required").max(80),

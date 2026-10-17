@@ -1,0 +1,11 @@
+# Public front door: automatic HTTPS for {$DOMAIN}, then on to the app.
+# The app reads X-Real-IP for its per-visitor rate limits, so set it here.
+{$DOMAIN} {
+	encode zstd gzip
+	request_body {
+		max_size 8MB
+	}
+	reverse_proxy app:3000 {
+		header_up X-Real-IP {remote_host}
+	}
+}

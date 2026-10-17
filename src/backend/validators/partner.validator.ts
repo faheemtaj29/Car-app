@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { CITIES, PART_CATEGORIES } from "@/lib/catalog";
+import { isHostedImage } from "@/lib/hostedImage";
 
 const phone = z.string().trim().regex(/^[+\d][\d\s-]{6,18}$/, "Enter a valid phone number");
 const year = new Date().getFullYear() + 1;
-const imageUrl = z.string().trim().refine((v) => /^\/uploads\/[\w/.-]+$/.test(v), "Upload the photo again");
+const imageUrl = z.string().trim().refine((v) => isHostedImage(v), "Upload the photo again");
 
 export const kycSchema = z.object({
   legalName: z.string().trim().min(3, "Full name as on your CNIC").max(80),

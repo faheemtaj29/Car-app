@@ -1,13 +1,46 @@
 import type { Metadata } from "next";
-import { Noto_Nastaliq_Urdu, Spectral, Work_Sans, Space_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import { settingsService } from "@/backend/services/settings.service";
 import { themeCss } from "@/lib/theme";
 import "./globals.css";
 
-const display = Spectral({ variable: "--font-display", subsets: ["latin"], weight: ["500", "600", "700"] });
-const sans = Work_Sans({ variable: "--font-sans", subsets: ["latin"], weight: ["400", "500", "600", "700"] });
-const mono = Space_Mono({ variable: "--font-mono", subsets: ["latin"], weight: ["400", "700"] });
-const urdu = Noto_Nastaliq_Urdu({ variable: "--font-urdu", subsets: ["arabic"], weight: ["400", "600"], display: "swap", preload: false });
+/** Fonts are bundled with the app (src/app/fonts), so nothing is fetched from Google. */
+const display = localFont({
+  variable: "--font-display",
+  src: [
+    { path: "./fonts/spectral-latin-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/spectral-latin-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/spectral-latin-700-normal.woff2", weight: "700", style: "normal" },
+  ],
+  display: "swap",
+});
+const sans = localFont({
+  variable: "--font-sans",
+  src: [
+    { path: "./fonts/work-sans-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/work-sans-latin-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/work-sans-latin-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/work-sans-latin-700-normal.woff2", weight: "700", style: "normal" },
+  ],
+  display: "swap",
+});
+const mono = localFont({
+  variable: "--font-mono",
+  src: [
+    { path: "./fonts/space-mono-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/space-mono-latin-700-normal.woff2", weight: "700", style: "normal" },
+  ],
+  display: "swap",
+});
+const urdu = localFont({
+  variable: "--font-urdu",
+  src: [
+    { path: "./fonts/noto-nastaliq-urdu-arabic-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/noto-nastaliq-urdu-arabic-600-normal.woff2", weight: "600", style: "normal" },
+  ],
+  display: "swap",
+  preload: false,
+});
 
 /** Brand and theme come from Settings; a missing database must never block rendering. */
 async function brand() {

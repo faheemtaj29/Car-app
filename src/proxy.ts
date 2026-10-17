@@ -6,7 +6,7 @@ import { canOpenPage } from "@/lib/access";
 const publicPaths = ["/", "/login", "/setup", "/cars", "/bikes", "/sell-car", "/shop", "/post-ad", "/account", "/saved", "/compare", "/search", "/car-finance", "/garage", "/alerts", "/register", "/verify", "/dealers", "/suppliers", "/parts"];
 
 /** APIs reachable without a staff session (they do their own checks). */
-const publicApi = ["/api/auth", "/api/site"];
+const publicApi = ["/api/auth", "/api/site", "/api/health"];
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;

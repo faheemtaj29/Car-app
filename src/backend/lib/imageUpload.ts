@@ -1,14 +1,10 @@
 /**
- * Image uploads to /public/uploads/images/YYYY/MM. The file type is decided by
- * its magic bytes, never by the client-supplied name or MIME type.
- *
- * Note: local disk is fine for a single server or a mounted volume. On
- * serverless/ephemeral hosting, swap `persist` for object storage (S3/R2).
+ * Image uploads. The file type is decided by its magic bytes, never by the
+ * client-supplied name or MIME type. Where the file is kept (disk or an
+ * S3-compatible bucket) is decided in lib/storage.
  */
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
-import { randomUUID } from "crypto";
 import { ServiceError } from "@/backend/types";
+import { putImage } from "@/backend/lib/storage";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -25,12 +21,6 @@ export async function saveImage(file: unknown) {
   const buf = Buffer.from(await file.arrayBuffer());
   const ext = sniff(buf);
   if (!ext) throw new ServiceError("VALIDATION", "Upload a JPG, PNG or WebP image", 400);
-  const now = new Date();
-  const rel = path.posix.join("images", String(now.getFullYear()), String(now.getMonth() + 1).padStart(2, "0"));
-  const dir = path.join(process.cwd(), "public", "uploads", rel);
-  await mkdir(dir, { recursive: true });
-  const name = `${randomUUID()}.${ext}`;
-  await writeFile(path.join(dir, name), buf);
-  return { url: `/uploads/${rel}/${name}`, size: file.size };
+  const { url } = await putImage(buf, ext);
+  return { url, size: file.size };
 }
-

@@ -118,3 +118,18 @@ When an admin approves a dealer or parts supplier, a certificate number (`CR-YYY
 - The PDF has business details only (no CNIC, no home address) and a QR code to `/verify/<number>`, which confirms it is genuine and still active. A suspended business shows as "no longer active" and can no longer download.
 - **Set `SITE_URL` in production**: it is the address inside the QR code.
 - The PDF is generated on request, so it always reflects the current business details. Business names in Urdu script are left out of the PDF (the built-in PDF fonts are Latin only); embed an Urdu font in `certificate.service.ts` if you need that.
+
+## Going live
+
+See **[DEPLOY.md](DEPLOY.md)** for the step-by-step guide (server, domain, HTTPS, backups, restore, updates, security checklist).
+
+In short: `cp .env.production.example .env`, fill it in, then `docker compose up -d --build`.
+
+Built for launch:
+- **Docker stack:** app + MongoDB (private, with a volume) + Caddy (automatic HTTPS). The image runs as a non-root user and has a health check (`/api/health`).
+- **Safe by default:** the app refuses to start in production with a missing or weak `JWT_SECRET` or no `MONGODB_URI`; security headers (no framing, HTTPS-only, strict form/object policy) are on; the build never bundles `.env`, `.git` or uploaded photos.
+- **Photos:** a persistent volume by default, or any S3-compatible bucket (`STORAGE_DRIVER=s3`). Photos uploaded after launch are served correctly and cached for a year.
+- **Fonts are bundled**, so neither the build nor the site depends on Google.
+- **Backups:** `scripts/backup.sh` (database + photos, 14-day retention) and `scripts/restore.sh` (into a safe copy first, or over the live data).
+
+Tests: `npm run test:e2e:all` (marketplace, engagement, partners and ops suites). The accounting totals are verified on real MongoDB 7; FerretDB-style stand-ins miscalculate credit totals.
