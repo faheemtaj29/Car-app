@@ -81,6 +81,7 @@ export const partnerController = {
     return partnerService.review(await idOf(ctx), parsed.data, s);
   }),
   identity: staff(["admin"], async (s, _req, ctx) => partnerService.reveal(await idOf(ctx), s)),
+  nadra: staff(["admin"], async (s, _req, ctx) => ({ result: await partnerService.nadraCheck(await idOf(ctx), s) })),
 };
 
 export const supplierController = {

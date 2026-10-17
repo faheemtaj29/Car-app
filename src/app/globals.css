@@ -2957,3 +2957,6 @@ a.pay-stat:hover { box-shadow: var(--shadow-md); }
   .biz-head { flex-direction: column; }
 }
 .pt-col > .badge, .pt-kyc .badge { justify-self: start; width: auto; }
+.nadra-match { color: var(--jade-dark); }
+.nadra-name_mismatch, .nadra-not_found, .nadra-blocked { color: var(--red); }
+.nadra-error { color: var(--text-dim); }

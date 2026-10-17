@@ -94,6 +94,10 @@ r = await new Client("anon").req("GET", `/api/shop/partners/${usmanId}/identity`
 check("anonymous cannot", r.status === 401);
 r = await admin.req("GET", "/api/shop/partners?kyc=pending&business=pending");
 check("review queue lists pending identities with masked CNIC", r.data.members?.some((m) => m._id === usmanId && !m.kyc.cnic.includes("1234567")) && r.data.counts?.kycPending >= 1);
+r = await admin.req("GET", "/api/shop/partners");
+check("NADRA verification is off by default", r.data.nadra === false && !r.data.members?.some((m) => m.kyc?.nadra));
+r = await admin.req("POST", `/api/shop/partners/${usmanId}/nadra`);
+check("NADRA check refused while switched off", r.status === 403, r.data.error);
 r = await admin.req("POST", `/api/shop/partners/${usmanId}`, { target: "kyc", decision: "verified" });
 check("admin verifies identity", r.status === 200, r.data.error);
 r = await kyc(usman, "Someone Else", "61101-7654321-1");

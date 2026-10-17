@@ -96,3 +96,17 @@ npm run test:e2e && npm run test:e2e:engagement
 ```bash
 npm run test:e2e && npm run test:e2e:engagement && npm run test:e2e:partners
 ```
+
+## NADRA verification (built, switched off)
+
+`src/backend/lib/nadra.ts` holds a ready NADRA Verisys integration that is **off** by default (`NADRA_PROVIDER=off`). Until it is on, staff verify identities by hand.
+
+To switch it on after getting a NADRA agreement:
+1. Confirm the fields marked `NADRA SPEC` against NADRA's API document.
+2. Set `NADRA_PROVIDER=verisys` and the `NADRA_*` credentials (see `.env.local.example`).
+3. Optionally set `NADRA_AUTO_VERIFY=1` so a full match verifies the seller automatically.
+
+When on, each new identity is checked as it is submitted, and admins get a "Check with NADRA" button. A mismatch is flagged for staff and never rejected automatically. Only the CNIC number and the name the seller typed are sent.
+
+Test the flow with the mock provider (development only; ignored in production):
+`NADRA_PROVIDER=mock NADRA_AUTO_VERIFY=1 npm run dev` and then `npm run test:e2e:nadra`.

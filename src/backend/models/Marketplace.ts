@@ -28,6 +28,8 @@ export interface IKyc {
   reviewedAt?: Date;
   reviewedBy?: string;
   reviewNote?: string;
+  /** Result of the NADRA check, when that integration is switched on (lib/nadra). */
+  nadra?: { status: string; reference?: string; message?: string; checkedAt: Date };
 }
 
 /** Public profile of a dealership or parts supplier that registered on the site. */
@@ -96,6 +98,7 @@ const MarketMemberSchema = new Schema<IMarketMember>(
       reviewedAt: Date,
       reviewedBy: String,
       reviewNote: String,
+      nadra: { status: String, reference: String, message: String, checkedAt: Date },
     },
     business: {
       name: String,

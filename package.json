@@ -12,7 +12,8 @@
     "test:e2e": "node scripts/e2e/marketplace.mjs",
     "test:e2e:reset": "node scripts/e2e/reset-test-db.cjs",
     "test:e2e:engagement": "node scripts/e2e/engagement.mjs",
-    "test:e2e:partners": "node scripts/e2e/partners.mjs"
+    "test:e2e:partners": "node scripts/e2e/partners.mjs",
+    "test:e2e:nadra": "node scripts/e2e/nadra.mjs"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

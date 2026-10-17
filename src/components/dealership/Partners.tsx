@@ -8,15 +8,17 @@ import { Pill, api, label, pkr } from "./shared";
 
 type Row = {
   _id: string; name: string; phone: string; email?: string; accountType: string; createdAt: string;
-  kyc: { status: string; legalName?: string; cnic?: string; city?: string; submittedAt?: string; reviewedBy?: string; reviewNote?: string };
+  kyc: { status: string; legalName?: string; cnic?: string; city?: string; submittedAt?: string; reviewedBy?: string; reviewNote?: string; nadra?: { status: string; reference?: string; message?: string; checkedAt: string } };
   business: null | { name: string; slug: string; status: string; city: string; address: string; phone: string; ntn?: string; about?: string; categories?: string[] };
 };
+const NADRA_LABEL: Record<string, string> = { match: "✓ Matches", name_mismatch: "Name does not match", not_found: "CNIC not found", blocked: "CNIC blocked / expired", error: "Could not check" };
+
 type Identity = { legalName: string; cnic: string; address: string; city: string; consentAt: string };
 
 /** Seller identity checks and dealer / supplier applications. */
 export function DealershipPartners({ isAdmin }: { isAdmin: boolean }) {
   const [filter, setFilter] = useState<"pending" | "dealer" | "supplier" | "all">("pending");
-  const [data, setData] = useState<{ members: Row[]; counts: { kycPending: number; businessPending: number } } | null>(null);
+  const [data, setData] = useState<{ members: Row[]; nadra: boolean; counts: { kycPending: number; businessPending: number } } | null>(null);
   const [revealed, setRevealed] = useState<Record<string, Identity>>({});
   const [error, setError] = useState("");
 
@@ -42,6 +44,15 @@ export function DealershipPartners({ isAdmin }: { isAdmin: boolean }) {
     }
     try {
       await api(`/api/shop/partners/${m._id}`, { method: "POST", json: { target, decision, note } });
+      load();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  async function nadra(m: Row) {
+    try {
+      await api(`/api/shop/partners/${m._id}/nadra`, { method: "POST" });
       load();
     } catch (e) {
       setError((e as Error).message);
@@ -80,11 +91,18 @@ export function DealershipPartners({ isAdmin }: { isAdmin: boolean }) {
                       <span>Identity: <Pill value={m.kyc.status} /></span>
                       {m.kyc.legalName ? <span>{m.kyc.legalName} · CNIC {id ? <b>{id.cnic}</b> : m.kyc.cnic} · {m.kyc.city}</span> : null}
                       {id ? <span className="muted small">{id.address} · consent given {prettyDate(id.consentAt)}</span> : null}
+                      {m.kyc.nadra ? (
+                        <span className={`small nadra-${m.kyc.nadra.status}`}>
+                          NADRA: <b>{NADRA_LABEL[m.kyc.nadra.status] || m.kyc.nadra.status}</b>{m.kyc.nadra.message ? ` — ${m.kyc.nadra.message}` : ""}
+                          {m.kyc.nadra.reference ? ` · ref ${m.kyc.nadra.reference}` : ""} · {prettyDate(m.kyc.nadra.checkedAt)}
+                        </span>
+                      ) : null}
                       {m.kyc.reviewedBy ? <span className="muted small">Reviewed by {m.kyc.reviewedBy}{m.kyc.reviewNote ? `: ${m.kyc.reviewNote}` : ""}</span> : null}
                     </div>
                     {isAdmin && m.kyc.status !== "none" ? (
                       <div className="pt-actions">
                         {!id ? <button type="button" className="link-btn" onClick={() => reveal(m)}>Show full CNIC & address</button> : null}
+                        {data.nadra ? <button type="button" className="link-btn" onClick={() => nadra(m)}>Check with NADRA</button> : null}
                         {m.kyc.status !== "verified" ? <button type="button" className="link-btn" onClick={() => review(m, "kyc", "verified")}>✓ Identity verified</button> : null}
                         {m.kyc.status !== "rejected" ? <button type="button" className="link-btn danger" onClick={() => review(m, "kyc", "rejected")}>Reject identity</button> : null}
                       </div>

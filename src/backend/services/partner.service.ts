@@ -19,6 +19,7 @@ import type { MemberSession } from "@/backend/lib/memberSession";
 import { recordAudit } from "@/backend/lib/audit";
 import { decryptField, encryptField, formatCnic, lookupHash, maskCnic, normaliseCnic } from "@/backend/lib/crypto";
 import type { businessSchema, kycSchema, partnerReviewSchema } from "@/backend/validators/partner.validator";
+import { nadraAutoVerify, nadraEnabled, nadraProvider } from "@/backend/lib/nadra";
 
 type Doc<T> = T & { _id: Types.ObjectId };
 type Member = Doc<IMarketMember>;
@@ -69,6 +70,26 @@ async function load(id: string) {
   return m;
 }
 
+/**
+ * Asks NADRA (when switched on) and records the result on the member. A clean
+ * match can verify the seller automatically if NADRA_AUTO_VERIFY=1; anything
+ * else stays with staff. Never throws: verification by hand still works.
+ */
+async function runNadraCheck(memberId: string, cnic: string, name: string) {
+  if (!nadraEnabled()) return null;
+  const result = await nadraProvider().verify({ cnic, name });
+  const now = new Date();
+  await MarketMember.updateOne({ _id: memberId }, { $set: { "kyc.nadra": { ...result, checkedAt: now } } });
+  // A mismatch is not proof of fraud (typos happen): it is flagged for staff, never auto-rejected.
+  if (result.status === "match" && nadraAutoVerify()) {
+    await MarketMember.updateOne(
+      { _id: memberId, "kyc.status": "pending" },
+      { $set: { "kyc.status": "verified", "kyc.reviewedAt": now, "kyc.reviewedBy": "NADRA (automatic)", idVerified: true, idVerifiedAt: now } }
+    );
+  }
+  return result;
+}
+
 export const partnerService = {
   async mine(member: MemberSession) {
     await dbConnect();
@@ -101,6 +122,7 @@ export const partnerService = {
         $unset: { "kyc.reviewNote": 1, "kyc.reviewedAt": 1 },
       }
     );
+    await runNadraCheck(String(m._id), cnic, data.legalName);
     return ownView(await load(member.id));
   },
 
@@ -193,6 +215,7 @@ export const partnerService = {
     }
     return {
       counts,
+      nadra: nadraEnabled(),
       members: rows.map((m) => ({
         _id: String(m._id),
         name: m.name,
@@ -200,7 +223,7 @@ export const partnerService = {
         email: m.email,
         accountType: m.accountType || "individual",
         createdAt: m.createdAt,
-        kyc: { status: m.kyc?.status || "none", legalName: m.kyc?.legalName, cnic: m.kyc?.cnicLast4 ? maskCnic(m.kyc.cnicLast4) : undefined, city: m.kyc?.city, submittedAt: m.kyc?.submittedAt, reviewedBy: m.kyc?.reviewedBy, reviewNote: m.kyc?.reviewNote },
+        kyc: { status: m.kyc?.status || "none", legalName: m.kyc?.legalName, cnic: m.kyc?.cnicLast4 ? maskCnic(m.kyc.cnicLast4) : undefined, city: m.kyc?.city, submittedAt: m.kyc?.submittedAt, reviewedBy: m.kyc?.reviewedBy, reviewNote: m.kyc?.reviewNote, nadra: m.kyc?.nadra },
         business: m.business?.name ? m.business : null,
       })),
     };
@@ -220,6 +243,18 @@ export const partnerService = {
       city: m.kyc.city,
       consentAt: m.kyc.consentAt,
     };
+  },
+
+  /** Admin: run (or re-run) the NADRA check for a member. */
+  async nadraCheck(id: string, actor: SessionUser) {
+    await dbConnect();
+    if (!nadraEnabled()) throw new ServiceError("FORBIDDEN", "NADRA verification is switched off (set NADRA_PROVIDER)", 403);
+    if (!Types.ObjectId.isValid(id)) throw new ServiceError("NOT_FOUND", "Member not found", 404);
+    const m = await MarketMember.findById(id).select("+kyc.cnicEnc name kyc.legalName").lean<Member>();
+    if (!m?.kyc?.cnicEnc || !m.kyc.legalName) throw new ServiceError("NOT_FOUND", "No identity on file", 404);
+    const result = await runNadraCheck(id, decryptField(m.kyc.cnicEnc), m.kyc.legalName);
+    await recordAudit({ module: "dealership", action: "nadra_check", entity: "member", entityId: id, summary: `NADRA check for ${m.name}: ${result?.status}`, actor });
+    return result;
   },
 
   async review(id: string, input: z.infer<typeof partnerReviewSchema>, actor: SessionUser) {
