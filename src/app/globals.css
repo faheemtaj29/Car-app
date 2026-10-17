@@ -2966,3 +2966,28 @@ a.pay-stat:hover { box-shadow: var(--shadow-md); }
 .cert-card p { margin: 4px 0 0 !important; font-size: 13px; }
 .verify.ok { border-color: var(--jade); background: var(--jade-light); }
 .verify.bad { border-color: var(--red); background: var(--red-light); }
+
+/* Analytics */
+.an-range { display: flex; gap: 6px; margin: 0 0 14px; flex-wrap: wrap; }
+.an-range button { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 13px; cursor: pointer; color: var(--text); }
+.an-range button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.an-legend { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--text); margin-bottom: 8px; }
+.an-legend span, .an-tip div { display: inline-flex; align-items: center; gap: 6px; }
+.an-legend i, .an-tip i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.an-legend .mk-link { margin-left: auto; }
+.an-chart { position: relative; }
+.an-chart svg { width: 100%; height: auto; display: block; }
+.an-tip { position: absolute; top: 4px; transform: translateX(-50%); background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow-md); border-radius: 8px; padding: 8px 10px; font-size: 12px; pointer-events: none; display: flex; flex-direction: column; gap: 3px; white-space: nowrap; }
+.an-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.an-grid > * { min-width: 0; }
+.an-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.an-bars li { display: grid; grid-template-columns: minmax(80px, 38%) 1fr 32px; gap: 10px; align-items: center; font-size: 13px; }
+.an-bar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.an-bar-track { height: 10px; background: var(--paper); border-radius: 6px; }
+.an-bar-track span { display: block; height: 100%; background: #14916a; border-radius: 0 4px 4px 0; }
+.an-bar-val { text-align: right; font-variant-numeric: tabular-nums; }
+.an-scroll { overflow-x: auto; }
+.an-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.an-table th, .an-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.an-table th { color: var(--text-dim); font-weight: 600; }
+.an-sub { font-size: 13px; margin: 16px 0 8px; color: var(--text-dim); }

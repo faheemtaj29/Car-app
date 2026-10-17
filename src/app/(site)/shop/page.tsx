@@ -1,3 +1,4 @@
+import { analyticsService } from "@/backend/services/analytics.service";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ProductCard } from "@/components/marketplace/ShopCards";
@@ -41,6 +42,7 @@ export default async function ShopPage({ searchParams }: { searchParams: Search 
     supplierService.search({ ...vehicle, q: filters.q, sort: filters.sort === "featured" ? undefined : filters.sort }),
     myCity ? supplierService.search({ ...vehicle, q: filters.q, city: myCity }) : Promise.resolve(null),
   ]);
+  if (vehicle.make && !filters.page) analyticsService.log({ kind: "part", make: vehicle.make, model: vehicle.model, city: myCity || undefined, results: partsAll.total ?? 0 });
   const vehicleLabel = [vehicle.make, vehicle.model, vehicle.year].filter(Boolean).join(" ");
   const href = (patch: Record<string, string | undefined>) => {
     const qs = new URLSearchParams();

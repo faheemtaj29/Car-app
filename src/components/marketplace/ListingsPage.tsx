@@ -1,3 +1,4 @@
+import { analyticsService } from "@/backend/services/analytics.service";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ListingCard } from "@/components/marketplace/Listing";
@@ -62,6 +63,7 @@ export async function ListingsPage({ type, searchParams }: { type: "car" | "bike
     ({ listings, total, page, pages } = await marketplaceService.search({ ...filters, city: undefined }));
     fellBack = true;
   }
+  if ((filters.make || filters.model) && !parsed.page) analyticsService.log({ kind: type, make: filters.make, model: filters.model, city: filters.city, results: fellBack ? 0 : total });
   /** Same search, different city / registration city. */
   const withParam = (patch: Record<string, string | undefined>) => {
     const qs = new URLSearchParams();

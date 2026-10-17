@@ -12,3 +12,18 @@ export const dashboardController = {
     }
   },
 };
+
+import { analyticsService } from "@/backend/services/analytics.service";
+
+export const analyticsController = {
+  async report(req: Request) {
+    const { error } = await requireAuth(["admin", "staff"]);
+    if (error) return error;
+    try {
+      const days = Number(new URL(req.url).searchParams.get("days")) || 30;
+      return jsonOk(await analyticsService.report(days));
+    } catch (e) {
+      return fromServiceError(e);
+    }
+  },
+};
