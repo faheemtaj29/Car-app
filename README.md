@@ -110,3 +110,11 @@ When on, each new identity is checked as it is submitted, and admins get a "Chec
 
 Test the flow with the mock provider (development only; ignored in production):
 `NADRA_PROVIDER=mock NADRA_AUTO_VERIFY=1 npm run dev` and then `npm run test:e2e:nadra`.
+
+## Certificate of registration
+
+When an admin approves a dealer or parts supplier, a certificate number (`CR-YYYY-NNNNN`) is issued automatically. The owner's **My account** page downloads the PDF by itself the first time they open it after approval, and always shows a "Download certificate" button.
+
+- The PDF has business details only (no CNIC, no home address) and a QR code to `/verify/<number>`, which confirms it is genuine and still active. A suspended business shows as "no longer active" and can no longer download.
+- **Set `SITE_URL` in production**: it is the address inside the QR code.
+- The PDF is generated on request, so it always reflects the current business details. Business names in Urdu script are left out of the PDF (the built-in PDF fonts are Latin only); embed an Urdu font in `certificate.service.ts` if you need that.

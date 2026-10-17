@@ -2960,3 +2960,9 @@ a.pay-stat:hover { box-shadow: var(--shadow-md); }
 .nadra-match { color: var(--jade-dark); }
 .nadra-name_mismatch, .nadra-not_found, .nadra-blocked { color: var(--red); }
 .nadra-error { color: var(--text-dim); }
+
+/* Certificate of registration */
+.cert-card { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; background: linear-gradient(135deg, var(--jade-light), #fff); border: 1px solid var(--jade); border-radius: 12px; padding: 14px 16px; margin: 4px 0 14px; }
+.cert-card p { margin: 4px 0 0 !important; font-size: 13px; }
+.verify.ok { border-color: var(--jade); background: var(--jade-light); }
+.verify.bad { border-color: var(--red); background: var(--red-light); }

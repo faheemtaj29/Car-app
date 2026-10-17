@@ -20,6 +20,7 @@ import { recordAudit } from "@/backend/lib/audit";
 import { decryptField, encryptField, formatCnic, lookupHash, maskCnic, normaliseCnic } from "@/backend/lib/crypto";
 import type { businessSchema, kycSchema, partnerReviewSchema } from "@/backend/validators/partner.validator";
 import { nadraAutoVerify, nadraEnabled, nadraProvider } from "@/backend/lib/nadra";
+import { issueCertificate } from "@/backend/services/certificate.service";
 
 type Doc<T> = T & { _id: Types.ObjectId };
 type Member = Doc<IMarketMember>;
@@ -273,6 +274,8 @@ export const partnerService = {
       if (!m.business?.name) throw new ServiceError("CONFLICT", "No business registered", 409);
       if (input.decision === "approved" && m.kyc?.status !== "verified") throw new ServiceError("VALIDATION", "Verify the owner's identity before approving the business", 400);
       await MarketMember.updateOne({ _id: m._id }, { $set: { "business.status": input.decision, "business.reviewedAt": now, "business.reviewNote": input.note } });
+      // Approval issues the certificate of registration straight away.
+      if (input.decision === "approved") await issueCertificate(String(m._id));
     }
     await recordAudit({ module: "dealership", action: `${input.target}_${input.decision}`, entity: "member", entityId: id, summary: `${m.name}: ${input.target} ${input.decision}${input.note ? ` (${input.note})` : ""}`, actor });
     return { ok: true };

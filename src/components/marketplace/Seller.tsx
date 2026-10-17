@@ -8,7 +8,7 @@ import { PART_CATEGORIES } from "@/lib/catalog";
 export type PartnerState = {
   accountType: "individual" | "dealer" | "supplier";
   kyc: { status: "none" | "pending" | "verified" | "rejected"; legalName?: string; cnic?: string; city?: string; submittedAt?: string; reviewNote?: string };
-  business: null | { name: string; slug: string; status: "pending" | "approved" | "rejected" | "suspended"; city: string; address: string; phone: string; whatsapp?: string; ntn?: string; about?: string; categories?: string[]; reviewNote?: string };
+  business: null | { certNo?: string; certDownloadedAt?: string; name: string; slug: string; status: "pending" | "approved" | "rejected" | "suspended"; city: string; address: string; phone: string; whatsapp?: string; ntn?: string; about?: string; categories?: string[]; reviewNote?: string };
 };
 
 export function usePartner() {
@@ -132,6 +132,41 @@ export function BusinessForm({ partner, type, onDone }: { partner: PartnerState;
 }
 
 /** Account page card: verification status and business registration. */
+/** Triggers the browser's download of the certificate PDF. */
+function downloadCertificate() {
+  const a = document.createElement("a");
+  a.href = "/api/site/partner/certificate";
+  a.download = "";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/**
+ * Shown once a business is approved. The first time the owner opens their
+ * account after approval, the certificate downloads by itself; after that
+ * there is always a button to get it again.
+ */
+function CertificateCard({ business, onDownloaded }: { business: NonNullable<PartnerState["business"]>; onDownloaded: () => void }) {
+  const first = !business.certDownloadedAt;
+  useEffect(() => {
+    if (!first) return;
+    downloadCertificate();
+    const t = setTimeout(onDownloaded, 1500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [first]);
+  return (
+    <div className="cert-card">
+      <div>
+        <b>🎉 {first ? "Your registration is approved" : "Certificate of registration"}</b>
+        <p>{first ? "Your certificate is downloading now. " : ""}Certificate no. <b>{business.certNo || "being issued"}</b>. Show it to customers: the QR code on it proves it is genuine.</p>
+      </div>
+      <button type="button" className="site-btn" onClick={() => { downloadCertificate(); setTimeout(onDownloaded, 1500); }}>⬇ Download certificate (PDF)</button>
+    </div>
+  );
+}
+
 export function SellerSetup({ want }: { want?: "dealer" | "supplier" | "individual" }) {
   const { partner, reload } = usePartner();
   const [editing, setEditing] = useState<"kyc" | "business" | null>(null);
@@ -167,6 +202,7 @@ export function SellerSetup({ want }: { want?: "dealer" | "supplier" | "individu
           </div>
         )}
       </div>
+      {partner.business?.status === "approved" ? <CertificateCard business={partner.business} onDownloaded={reload} /> : null}
       {showKyc ? <KycForm partner={partner} onDone={() => { setEditing(null); reload(); }} /> : null}
       {showBusiness && type ? <BusinessForm partner={partner} type={type} onDone={() => { setEditing(null); reload(); }} /> : null}
     </div>

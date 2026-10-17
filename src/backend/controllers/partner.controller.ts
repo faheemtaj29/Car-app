@@ -7,6 +7,7 @@ import { getMember } from "@/backend/lib/memberSession";
 import { tooMany } from "@/backend/lib/rateLimit";
 import { partnerService } from "@/backend/services/partner.service";
 import { supplierService } from "@/backend/services/supplier.service";
+import { certificateService } from "@/backend/services/certificate.service";
 import {
   businessSchema,
   kycSchema,
@@ -49,6 +50,13 @@ function staff(roles: ("admin" | "staff")[] | undefined, fn: (s: NonNullable<Awa
 }
 
 export const partnerController = {
+  /** The signed-in dealer/supplier's certificate of registration (PDF download). */
+  certificate: member(async (m) => {
+    const { body, filename } = await certificateService.pdfFor(m.id);
+    return new Response(new Uint8Array(body), {
+      headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${filename}"`, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
+    });
+  }),
   mine: member(async (m) => partnerService.mine(m)),
   submitKyc: member(async (m, req) => {
     if (tooMany(req, "kyc-submit", 10, 60 * 60_000, m.id)) return LIMITED();

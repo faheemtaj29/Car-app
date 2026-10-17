@@ -44,6 +44,10 @@ export interface IBusiness {
   whatsapp?: string;
   about?: string;
   categories?: string[];
+  /** Certificate of registration, issued on approval (CR-YYYY-NNNNN). */
+  certNo?: string;
+  certIssuedAt?: Date;
+  certDownloadedAt?: Date;
   submittedAt?: Date;
   reviewedAt?: Date;
   reviewNote?: string;
@@ -111,6 +115,9 @@ const MarketMemberSchema = new Schema<IMarketMember>(
       whatsapp: String,
       about: String,
       categories: { type: [String], default: undefined },
+      certNo: { type: String, index: true },
+      certIssuedAt: Date,
+      certDownloadedAt: Date,
       submittedAt: Date,
       reviewedAt: Date,
       reviewNote: String,
