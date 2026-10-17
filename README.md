@@ -84,3 +84,15 @@ Run the feature tests after the main suite (same `*_test` database, server start
 ```bash
 npm run test:e2e && npm run test:e2e:engagement
 ```
+
+## Sellers, dealers and parts suppliers
+
+- **Registration** (`/register`): individual, dealer or parts supplier. Every seller gives their legal name, CNIC number and address once, with consent. **No ID-card copy is collected.**
+- **Privacy:** the CNIC is encrypted (AES-256-GCM; set `KYC_SECRET` once, or it derives from `JWT_SECRET`), shown masked, and only an admin can view it in full (Dealership → Sellers & Partners). Every view is written to the audit log. Identity data never appears on public pages or APIs.
+- **Dealers** (after admin approval): up to 200 live cars, a public page at `/dealers/<name>`, a dealer badge on their ads, and "Copy as new ad" for similar cars.
+- **Suppliers** (after admin approval): list parts with the exact makes, models and years they fit. Buyers find them via "Parts for my vehicle" on the shop and contact the supplier directly.
+- **City-first search:** the 📍 city picker in the header shows local cars first, with counts for every other city. You can also filter by the registration (number-plate) city.
+
+```bash
+npm run test:e2e && npm run test:e2e:engagement && npm run test:e2e:partners
+```
