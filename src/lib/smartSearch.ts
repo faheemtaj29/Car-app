@@ -4,6 +4,7 @@
  * ("30 لاکھ تک آٹومیٹک گاڑی"). Rule-based on purpose: instant, free, private,
  * and every interpretation is shown back to the user as a removable chip.
  */
+import { BIKE_MODELS, CAR_MODELS, CITIES } from "@/lib/catalog";
 
 export type SmartFilters = {
   type?: "car" | "bike";
@@ -34,30 +35,31 @@ export type SmartFilters = {
 
 export type SmartResult = { filters: SmartFilters; understood: string[] };
 
-/** Common makes → models in Pakistan; DB makes are merged in at call time. */
-export const KNOWN_MODELS: Record<string, string[]> = {
-  Toyota: ["Corolla", "Yaris", "Fortuner", "Prado", "Land Cruiser", "Hilux", "Revo", "Camry", "Vitz", "Passo", "Aqua", "Prius", "Rush", "Raize", "Corolla Cross", "Premio", "Mark X"],
-  Honda: ["Civic", "City", "BR-V", "HR-V", "Accord", "Vezel", "Fit", "N-Wgn", "N-Box", "CD 70", "CG 125", "Pridor", "CB 150F", "CB 125F", "Dream"],
-  Suzuki: ["Alto", "Cultus", "Wagon R", "Swift", "Mehran", "Bolan", "Every", "Jimny", "Ciaz", "Vitara", "Hustler", "GS 150", "GD 110", "GR 150"],
-  KIA: ["Sportage", "Picanto", "Sorento", "Stonic", "Carnival", "Sonet"],
-  Hyundai: ["Tucson", "Elantra", "Sonata", "Santa Fe", "Staria"],
-  Changan: ["Alsvin", "Oshan X7", "Karvaan"],
-  MG: ["HS", "ZS", "5"],
-  Haval: ["H6", "Jolion"],
-  Proton: ["Saga", "X70"],
-  Nissan: ["Dayz", "Sunny", "Note", "Juke"],
-  Daihatsu: ["Mira", "Move", "Cuore", "Hijet", "Tanto"],
-  Mercedes: ["C Class", "E Class", "S Class"],
-  BMW: ["3 Series", "5 Series", "X5"],
-  Audi: ["A3", "A4", "A6", "Q7"],
-  Yamaha: ["YBR 125", "YB 125Z", "YBR 125G"],
-  United: ["US 70", "US 125"],
-  "Road Prince": ["RP 70", "Wego 150"],
-};
+/** All makes → models (cars and bikes) from the site catalogue. */
+export const KNOWN_MODELS: Record<string, string[]> = (() => {
+  const out: Record<string, string[]> = {};
+  for (const book of [CAR_MODELS, BIKE_MODELS]) {
+    for (const [make, models] of Object.entries(book)) out[make] = [...new Set([...(out[make] || []), ...models])];
+  }
+  return out;
+})();
 
-const BIKE_MODELS = new Set(["CD 70", "CG 125", "Pridor", "CB 150F", "CB 125F", "Dream", "GS 150", "GD 110", "GR 150", "YBR 125", "YB 125Z", "YBR 125G", "US 70", "US 125", "RP 70", "Wego 150"]);
+const AMBIGUOUS_MODELS = new Set(["city", "fit", "life", "move", "grace", "note", "every", "joy", "sport", "seal", "dolphin", "alpha", "storm", "cast", "boon", "flair", "rocky", "pearl", "premium", "infinity", "jackpot", "bravo", "excel", "rio", "dream", "freed", "zest", "mirage", "crown", "shark 6", "carrier", "exclusive", "raider", "sprinter", "metro", "primavera", "sprint", "khyber", "ravi", "frontier", "gt", "vogue", "velar", "evoque", "kicks", "patrol", "insight", "liana", "a class", "g class", "sorento"]);
 
-const CITIES = ["Lahore", "Karachi", "Islamabad", "Rawalpindi", "Faisalabad", "Multan", "Peshawar", "Quetta", "Sialkot", "Gujranwala", "Hyderabad", "Bahawalpur", "Sargodha", "Abbottabad", "Sukkur", "Gujrat", "Sahiwal", "Mardan"];
+/** Everyday short names for catalogue models. */
+const MODEL_ALIASES: [RegExp, string, string][] = [
+  [/\bprado\b/, "Toyota", "Land Cruiser Prado"],
+  [/\b(revo|hilux revo)\b/, "Toyota", "Hilux Revo"],
+  [/\bv8\b|\bland cruiser\b(?! prado)/, "Toyota", "Land Cruiser"],
+  [/\bwagon ?r\b|\bwagonr\b/, "Suzuki", "Wagon R"],
+  [/\bcd ?70\b|\bhonda 70\b/, "Honda", "CD 70"],
+  [/\bcg ?125\b|\bhonda 125\b/, "Honda", "CG 125"],
+  [/\bybr\b(?![\s-]*125)/, "Yamaha", "YBR 125"],
+  [/\bmerc(edes)?\b|\bbenz\b/, "Mercedes Benz", ""],
+];
+
+const BIKE_MODELS_SET = new Set(Object.values(BIKE_MODELS).flat());
+
 const URDU_CITIES: Record<string, string> = { لاہور: "Lahore", کراچی: "Karachi", اسلام: "Islamabad", راولپنڈی: "Rawalpindi", فیصل: "Faisalabad", ملتان: "Multan", پشاور: "Peshawar", کوئٹہ: "Quetta" };
 
 const FEATURE_WORDS: [RegExp, string][] = [
@@ -195,20 +197,27 @@ export function parseSmartQuery(raw: string, extraMakes: string[] = []): SmartRe
   if (feats.length) { f.features = feats; understood.push(...feats.map((x) => `With ${x.toLowerCase()}`)); }
 
   // City (English names, Urdu names, "Lahore mein")
-  for (const c of CITIES) if (take(new RegExp(`\\b${c.toLowerCase()}\\b`))) { f.city = c; understood.push(`In ${c}`); break; }
+  for (const c of [...CITIES].sort((a, b) => b.length - a.length)) if (take(new RegExp(`\\b${esc(c.toLowerCase())}\\b`))) { f.city = c; understood.push(`In ${c}`); break; }
   if (!f.city) for (const [u, c] of Object.entries(URDU_CITIES)) if (q.includes(u)) { f.city = c; understood.push(`In ${c}`); break; }
 
   // Make + model: try models first (more specific), then makes.
   const catalogue: Record<string, string[]> = { ...KNOWN_MODELS };
   for (const mk of extraMakes) if (!Object.keys(catalogue).some((k) => k.toLowerCase() === mk.toLowerCase())) catalogue[mk] = [];
-  outer: for (const [make, models] of Object.entries(catalogue)) {
+  for (const [rx, make, model] of MODEL_ALIASES) {
+    if (take(rx)) { f.make = make; if (model) f.model = model; understood.push(model ? `${make} ${model}` : make); break; }
+  }
+  if (!f.make) outer: for (const [make, models] of Object.entries(catalogue)) {
     for (const model of [...models].sort((a, b) => b.length - a.length)) {
-      const rx = new RegExp(`\\b${esc(model.toLowerCase()).replace(/[\s-]+/g, "[\\s-]*")}\\b`);
+      const body = esc(model.toLowerCase()).replace(/[\s-]+/g, "[\\s-]*");
+      // Models that are everyday words ("City", "Fit", MG "5") only count after their brand.
+      const rx = AMBIGUOUS_MODELS.has(model.toLowerCase()) || /^\d+$/.test(model)
+        ? new RegExp(`\\b${esc(make.toLowerCase())}\\s+${body}\\b`)
+        : new RegExp(`\\b${body}\\b`);
       if (take(rx)) { f.make = make; f.model = model; understood.push(`${make} ${model}`); break outer; }
     }
   }
   if (!f.make) for (const make of Object.keys(catalogue)) if (take(new RegExp(`\\b${esc(make.toLowerCase())}\\b`))) { f.make = make; understood.push(make); break; }
-  if (f.model && BIKE_MODELS.has(f.model)) f.type = "bike";
+  if (f.model && BIKE_MODELS_SET.has(f.model)) f.type = "bike";
 
   // Sorting words
   if (take(/\b(cheap|cheapest|sasti|sasta|kam qeemat|lowest price)\b|سستی|سستا/)) { f.sort = "price_asc"; understood.push("Cheapest first"); }

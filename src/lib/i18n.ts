@@ -161,3 +161,6 @@ export const isLang = (v: unknown): v is Lang => v === "en" || v === "ur";
 export function translator(lang: Lang) {
   return (key: Key) => DICT[lang][key] ?? en[key];
 }
+
+/** Buyer's own city (header picker); search pages show this city first. */
+export const CITY_COOKIE = "am_city";

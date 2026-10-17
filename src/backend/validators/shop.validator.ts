@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { cleanSpecs, isVideoUrl } from "@/lib/vehicleSpecs";
+import { fitmentSchema } from "@/backend/validators/partner.validator";
 import {
   AD_LIMITS,
   CART_LIMITS,
@@ -95,6 +96,7 @@ export const shopListingSchema = z.object({
   featured: z.boolean().default(false),
   tags: z.array(z.string().trim().min(1).max(30)).max(20).default([]),
   fitment: z.string().max(500).optional(),
+  fitments: z.array(fitmentSchema).max(60).default([]),
 });
 
 export const checkoutSchema = z.object({

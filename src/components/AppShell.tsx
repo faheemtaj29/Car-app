@@ -51,6 +51,7 @@ const navGroups: NavGroup[] = [
             { href: "/dealership?tab=bookings", label: "Bookings" },
             { href: "/dealership?tab=tokens", label: "Safe Tokens" },
             { href: "/dealership?tab=reviews", label: "Reviews" },
+            { href: "/dealership?tab=partners", label: "Sellers & Partners" },
           ],
         },
       },
@@ -63,6 +64,7 @@ const navGroups: NavGroup[] = [
           items: [
             { href: "/ecommerce?tab=orders", label: "Orders" },
             { href: "/ecommerce?tab=products", label: "Products" },
+            { href: "/ecommerce?tab=suppliers", label: "Supplier Products" },
             { href: "/ecommerce?tab=coupons", label: "Coupons" },
             { href: "/ecommerce?tab=settings", label: "Shop Settings" },
           ],

@@ -1,11 +1,13 @@
 "use client";
 
+import { CITY_LIST_ID, makeListId, modelListId } from "@/components/CatalogLists";
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ImageUploader } from "@/components/ImageUploader";
 import { formatPKR } from "@/lib/dealership";
 import { AD_LIMITS, BODY_TYPES, type VehicleType } from "@/lib/shop";
 import { VehicleSpecsEditor } from "@/components/VehicleSpecsEditor";
+import { KycForm, usePartner } from "./Seller";
 
 type Me = { member: { _id: string; name: string; phone: string; email?: string; city?: string; createdAt: string }; orders: OrderRow[] };
 type OrderRow = {
@@ -65,7 +67,7 @@ export function AuthPanel({ onDone, intro }: { onDone: () => void; intro?: strin
       <form onSubmit={submit} className="site-form-grid">
         {mode === "register" ? <label>Full name<input value={f.name} onChange={(e) => set("name", e.target.value)} required minLength={2} /></label> : null}
         <label>Mobile number<input value={f.phone} onChange={(e) => set("phone", e.target.value)} required inputMode="tel" placeholder="03xx-xxxxxxx" autoComplete="tel" /></label>
-        {mode === "register" ? <label>City<input value={f.city} onChange={(e) => set("city", e.target.value)} /></label> : null}
+        {mode === "register" ? <label>City<input value={f.city} onChange={(e) => set("city", e.target.value)} list={CITY_LIST_ID} /></label> : null}
         {mode === "register" ? <label>Email (optional)<input type="email" value={f.email} onChange={(e) => set("email", e.target.value)} /></label> : null}
         <label>Password<input type="password" value={f.password} onChange={(e) => set("password", e.target.value)} required minLength={mode === "register" ? 8 : 1} autoComplete={mode === "login" ? "current-password" : "new-password"} /></label>
         <input className="mk-hp" tabIndex={-1} autoComplete="off" value={f.website} onChange={(e) => set("website", e.target.value)} aria-hidden="true" />
@@ -151,8 +153,8 @@ export function AdEditor({ initial, editId, onSaved }: { initial: AdForm; editId
 
       <div className="site-form-section">Vehicle</div>
       <div className="site-form-grid">
-        <label>Make<input value={f.make} onChange={(e) => set("make", e.target.value)} required placeholder={isBike ? "Honda" : "Toyota"} /></label>
-        <label>Model<input value={f.model} onChange={(e) => set("model", e.target.value)} required placeholder={isBike ? "CG 125" : "Corolla"} /></label>
+        <label>Make<input value={f.make} onChange={(e) => set("make", e.target.value)} required placeholder={isBike ? "Honda" : "Toyota"} list={makeListId(f.vehicleType)} autoComplete="off" /></label>
+        <label>Model<input value={f.model} onChange={(e) => set("model", e.target.value)} required placeholder={isBike ? "CG 125" : "Corolla"} list={modelListId(f.vehicleType, f.make)} autoComplete="off" /></label>
         <label>Variant<input value={f.variant} onChange={(e) => set("variant", e.target.value)} placeholder={isBike ? "Self Start" : "Altis 1.6"} /></label>
         <label>Model year
           <select value={f.year} onChange={(e) => set("year", e.target.value)}>
@@ -180,7 +182,7 @@ export function AdEditor({ initial, editId, onSaved }: { initial: AdForm; editId
           </label>
         ) : null}
         <label>Colour<input value={f.color} onChange={(e) => set("color", e.target.value)} /></label>
-        <label>Registered in<input value={f.registeredIn} onChange={(e) => set("registeredIn", e.target.value)} placeholder="Lahore / Unregistered" /></label>
+        <label>Registered in (city on the number plate)<input value={f.registeredIn} onChange={(e) => set("registeredIn", e.target.value)} placeholder="Islamabad / Unregistered" list={CITY_LIST_ID} autoComplete="off" /></label>
         <label>Condition
           <select value={f.condition} onChange={(e) => set("condition", e.target.value as "new" | "used")}>
             <option value="used">Used</option><option value="new">New</option>
@@ -202,7 +204,7 @@ export function AdEditor({ initial, editId, onSaved }: { initial: AdForm; editId
       <div className="site-form-section">Price & contact</div>
       <div className="site-form-grid">
         <label>Asking price (PKR)<input type="number" min={1000} value={f.listPrice} onChange={(e) => set("listPrice", e.target.value)} required /></label>
-        <label>City<input value={f.city} onChange={(e) => set("city", e.target.value)} required /></label>
+        <label>City<input value={f.city} onChange={(e) => set("city", e.target.value)} required list={CITY_LIST_ID} autoComplete="off" /></label>
         <label>Your name<input value={f.sellerName} onChange={(e) => set("sellerName", e.target.value)} required /></label>
         <label>Contact number<input value={f.sellerPhone} onChange={(e) => set("sellerPhone", e.target.value)} required inputMode="tel" /></label>
       </div>
@@ -252,37 +254,63 @@ export function PostAdApp({ type, fromGarage }: { type: VehicleType; fromGarage?
       .finally(() => setPrefillState("ready"));
   }, [state, fromGarage]);
   if (state === "loading" || (state === "in" && prefillState === "loading")) return <p className="mk-muted">Loading…</p>;
-  if (state === "out") return <AuthPanel onDone={reload} intro="Log in or create a free account to post your ad and receive buyer messages." />;
-  if (done) {
+  if (state === "in") return <SellGate>{renderEditor()}</SellGate>;
+  return renderEditor();
+
+  function renderEditor() {
+    if (state === "out") return <AuthPanel onDone={reload} intro="Log in or create a free account to post your ad and receive buyer messages." />;
+    if (done) {
+      return (
+        <div className="site-card">
+          <h3>{done === "active" ? "Your ad is live ✓" : "Ad submitted ✓"}</h3>
+          <p>
+            {done === "active"
+              ? "Buyers can see it now. Messages from buyers appear in your account."
+              : "We review new ads to keep the marketplace safe, usually within a few hours. You can track it in your account."}
+          </p>
+          <p><Link href="/account" className="site-btn">Go to my ads</Link></p>
+        </div>
+      );
+    }
+    const base = blankAd(prefill?.car.vehicleType || type, me?.member);
+    const initial: AdForm = prefill
+      ? {
+          ...base,
+          make: prefill.car.make, model: prefill.car.model, variant: prefill.car.variant || "", year: String(prefill.car.year),
+          mileage: String(prefill.car.estimatedKm), engineCc: prefill.car.engineCc ? String(prefill.car.engineCc) : "",
+          fuel: prefill.car.fuel || base.fuel, transmission: prefill.car.transmission || base.transmission, color: prefill.car.color || "",
+          registrationNo: prefill.car.registrationNo || "", description: prefill.description,
+          specs: prefill.car.serviceLog.length ? { serviceHistory: prefill.car.serviceLog.length >= 3 ? "Complete dealer record" : "Partial record" } : {},
+        }
+      : base;
+    return (
+      <>
+        {prefill ? <div className="mk-note">Filled in from <b>My Garage</b>, including your service record. Add photos and a price to finish.</div> : null}
+        <AdEditor initial={initial} onSaved={(status) => setDone(status)} />
+      </>
+    );
+  }
+}
+
+/** Before the ad form: identity on file, and the right kind of account. */
+function SellGate({ children }: { children: React.ReactNode }) {
+  const { partner, reload } = usePartner();
+  if (!partner) return <p className="mk-muted">Loading…</p>;
+  if (partner === "out") return <>{children}</>;
+  if (partner.kyc.status === "none" || partner.kyc.status === "rejected") {
     return (
       <div className="site-card">
-        <h3>{done === "active" ? "Your ad is live ✓" : "Ad submitted ✓"}</h3>
-        <p>
-          {done === "active"
-            ? "Buyers can see it now. Messages from buyers appear in your account."
-            : "We review new ads to keep the marketplace safe, usually within a few hours. You can track it in your account."}
-        </p>
-        <p><Link href="/account" className="site-btn">Go to my ads</Link></p>
+        <h3>First, verify who is selling</h3>
+        {partner.kyc.reviewNote ? <div className="mk-error">{partner.kyc.reviewNote}</div> : null}
+        <KycForm partner={partner} onDone={reload} />
       </div>
     );
   }
-  const base = blankAd(prefill?.car.vehicleType || type, me?.member);
-  const initial: AdForm = prefill
-    ? {
-        ...base,
-        make: prefill.car.make, model: prefill.car.model, variant: prefill.car.variant || "", year: String(prefill.car.year),
-        mileage: String(prefill.car.estimatedKm), engineCc: prefill.car.engineCc ? String(prefill.car.engineCc) : "",
-        fuel: prefill.car.fuel || base.fuel, transmission: prefill.car.transmission || base.transmission, color: prefill.car.color || "",
-        registrationNo: prefill.car.registrationNo || "", description: prefill.description,
-        specs: prefill.car.serviceLog.length ? { serviceHistory: prefill.car.serviceLog.length >= 3 ? "Complete dealer record" : "Partial record" } : {},
-      }
-    : base;
-  return (
-    <>
-      {prefill ? <div className="mk-note">Filled in from <b>My Garage</b>, including your service record. Add photos and a price to finish.</div> : null}
-      <AdEditor initial={initial} onSaved={(status) => setDone(status)} />
-    </>
-  );
+  if (partner.accountType === "supplier") return <div className="site-card"><h3>Supplier accounts list parts</h3><p>Add your products from <Link href="/account">My account</Link>.</p></div>;
+  if (partner.accountType === "dealer" && partner.business?.status !== "approved") {
+    return <div className="site-card"><h3>Your dealership is under review</h3><p>We&apos;ll approve it after checking your details, usually within a working day. You can then list your stock here.</p></div>;
+  }
+  return <>{children}</>;
 }
 
 const STATUS_NOTE: Record<string, string> = {
@@ -333,10 +361,13 @@ export function AccountApp() {
   if (state === "loading") return <p className="mk-muted">Loading…</p>;
   if (state === "out") return <AuthPanel onDone={reload} intro="Log in to manage your ads, read buyer messages and track shop orders." />;
   if (editing) {
+    // "Copy as new" (dealers listing several similar cars) starts from the ad without its photos and plate.
+    const copy = editing._id === "";
     return (
       <>
         <button type="button" className="site-link" onClick={() => setEditing(null)} style={{ background: "none", border: 0, cursor: "pointer", marginBottom: 12 }}>‹ Back to my ads</button>
-        <AdEditor initial={adToForm(editing)} editId={editing._id} onSaved={() => { setEditing(null); loadAds(); }} />
+        {copy ? <div className="mk-note">Copy of an existing ad: add this car&apos;s own photos, mileage, price and registration.</div> : null}
+        <AdEditor initial={adToForm(editing)} editId={copy ? undefined : editing._id} onSaved={() => { setEditing(null); loadAds(); }} />
       </>
     );
   }
@@ -378,6 +409,7 @@ export function AccountApp() {
                   <div className="mk-badges" style={{ marginTop: 8 }}>
                     {a.status === "active" ? <Link className="site-link" href={`/${a.vehicleType === "bike" ? "bikes" : "cars"}/${a._id}`}>View ad</Link> : null}
                     {["pending", "active", "rejected"].includes(a.status) ? <button type="button" className="mk-link" onClick={() => setEditing(a)}>Edit</button> : null}
+                    <button type="button" className="mk-link" onClick={() => setEditing({ ...a, _id: "", photos: [], registrationNo: "", chassisNo: "", mileage: 0 })}>Copy as new ad</button>
                     {a.status === "active" ? <button type="button" className="mk-link" onClick={() => act(a._id, "mark_sold")}>Mark sold</button> : null}
                     {a.status === "expired" || expiresSoon ? <button type="button" className="mk-link" onClick={() => act(a._id, "renew")}>Renew 30 days</button> : null}
                     <button type="button" className="mk-link" onClick={() => { setOpenMsgs(openMsgs === a._id ? null : a._id); if (unread) act(a._id, "read_messages"); }}>

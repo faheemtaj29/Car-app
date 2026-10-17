@@ -7,3 +7,6 @@ export { LedgerEntry } from "./Ledger";
 export { InventoryItem, StockVoucher } from "./Inventory";
 export { Vehicle, DealerCustomer, DealerDeal } from "./Dealership";
 export { MarketMember, ClassifiedAd, ShopOrder, ShopSettings, Coupon } from "./Marketplace";
+export { SupplierProduct } from "./Partners";
+export { VehicleSnapshot, GarageCar, Booking, Review, Alert, TokenRequest } from "./Engagement";
+export { Lock } from "./Lock";

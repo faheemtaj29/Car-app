@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CatalogLists } from "@/components/CatalogLists";
 import { ReactNode } from "react";
 import { settingsService } from "@/backend/services/settings.service";
 import { marketplaceService } from "@/backend/services/marketplace.service";
@@ -6,15 +7,17 @@ import { CartBadge } from "@/components/marketplace/ShopClient";
 import { CompareTray } from "@/components/marketplace/SavedClient";
 import { HeaderBadges } from "@/components/marketplace/Alerts";
 import { LangSwitch } from "@/components/marketplace/LangSwitch";
-import { getT } from "@/lib/i18n.server";
+import { getMyCity, getT } from "@/lib/i18n.server";
+import { CityPicker } from "@/components/marketplace/CityPicker";
 
 export const dynamic = "force-dynamic";
 
 export default async function SiteLayout({ children }: { children: ReactNode }) {
-  const [settings, flags, { lang, t }] = await Promise.all([
+  const [settings, flags, { lang, t }, myCity] = await Promise.all([
     settingsService.get().catch(() => null),
     marketplaceService.navFlags().catch(() => ({ cars: true, bikes: true, shop: true, classifieds: true })),
     getT(),
+    getMyCity(),
   ]);
   const name = settings?.businessName || "Auto Marketplace";
   const tagline = settings?.tagline || "Cars, bikes, parts & accessories";
@@ -43,6 +46,7 @@ export default async function SiteLayout({ children }: { children: ReactNode }) 
           ))}
         </nav>
         <div className="site-nav-actions">
+          <CityPicker city={myCity} />
           <LangSwitch lang={lang} label={t("lang.switch")} />
           <HeaderBadges garageLabel={t("nav.garage")} />
           <Link href="/saved" className="mk-saved-link" aria-label="Saved vehicles">{t("nav.saved")}</Link>
@@ -53,6 +57,7 @@ export default async function SiteLayout({ children }: { children: ReactNode }) 
       </header>
 
       <main>{children}</main>
+      <CatalogLists />
       <CompareTray />
 
       <footer className="site-footer">
@@ -82,6 +87,8 @@ export default async function SiteLayout({ children }: { children: ReactNode }) 
             <p><Link href="/garage">My Garage</Link></p>
             <p><Link href="/car-finance">{t("nav.finance")}</Link></p>
             <p><Link href="/alerts">Alerts</Link> · <Link href="/compare">Compare</Link></p>
+            <p><Link href="/dealers">Dealers</Link> · <Link href="/suppliers">Parts suppliers</Link></p>
+            <p><Link href="/register">Register to sell (individual, dealer, supplier)</Link></p>
           </div>
         </div>
         <div className="site-copy">© {new Date().getFullYear()} {name}</div>

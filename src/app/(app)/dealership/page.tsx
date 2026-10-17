@@ -9,6 +9,7 @@ import { DealershipCustomers } from "@/components/dealership/Customers";
 import { DealershipDeals, type DealPrefill } from "@/components/dealership/Deals";
 import { DealershipClassifieds } from "@/components/dealership/Classifieds";
 import { DealershipBookings, DealershipReviews, DealershipTokens } from "@/components/dealership/Engagement";
+import { DealershipPartners } from "@/components/dealership/Partners";
 import type { Branch } from "@/components/dealership/shared";
 
 const TABS = [
@@ -20,6 +21,7 @@ const TABS = [
   ["bookings", "Bookings"],
   ["tokens", "Safe Tokens"],
   ["reviews", "Reviews"],
+  ["partners", "Sellers & Partners"],
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
@@ -130,6 +132,7 @@ export default function DealershipPage() {
       {tab === "bookings" ? <DealershipBookings /> : null}
       {tab === "tokens" ? <DealershipTokens isAdmin={me.role === "admin"} /> : null}
       {tab === "reviews" ? <DealershipReviews /> : null}
+      {tab === "partners" ? <DealershipPartners isAdmin={me.role === "admin"} /> : null}
     </>
   );
 }

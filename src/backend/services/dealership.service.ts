@@ -14,6 +14,7 @@ import { ServiceError, type SessionUser } from "@/backend/types";
 import { recordAudit, getAuditTrail } from "@/backend/lib/audit";
 import { accountingService } from "@/backend/services/accounting.service";
 import { historyService, nextPriceDrop } from "@/backend/services/history.service";
+import { acquireLock, clearStaleLock, lockHolder, releaseLock } from "@/backend/lib/lock";
 import {
   AGING_BUCKETS,
   LEAD_STAGES,
@@ -628,7 +629,29 @@ async function assertPriceAllowed(vehicle: IVehicle, salePrice: number, discount
  * Reserve the unit for this deal in ONE conditional update, so two deals
  * racing for the same car cannot both win (no read-then-save gap).
  */
+/**
+ * Holds the car for this deal. A lock document decides the winner when two
+ * deals try at the same moment; the conditional update then records it.
+ */
 async function reserveVehicle(deal: Doc<IDealerDeal>) {
+  const key = `vehicle:${deal.vehicleId}`;
+  const holder = String(deal._id);
+  let mine = await acquireLock(key, holder);
+  if (!mine) {
+    // A lock left by a deal that no longer holds the car (e.g. data from before
+    // locks existed) must not block it forever.
+    const other = await lockHolder(key);
+    const v = await Vehicle.findById(deal.vehicleId).select("status dealId").lean<{ status: string; dealId?: Types.ObjectId }>();
+    if (other && v && v.status === "in_stock") {
+      await clearStaleLock(key, other);
+      mine = await acquireLock(key, holder);
+    }
+  }
+  if (!mine) {
+    const vehicle = await Vehicle.findById(deal.vehicleId).select("stockNo status").lean<{ stockNo: string; status: string }>();
+    if (vehicle?.status === "sold") throw new ServiceError("CONFLICT", `${vehicle.stockNo} is already sold`, 409);
+    throw new ServiceError("CONFLICT", `${vehicle?.stockNo || "This vehicle"} is reserved on another deal`, 409);
+  }
   const won = await Vehicle.findOneAndUpdate(
     {
       _id: deal.vehicleId,
@@ -639,6 +662,7 @@ async function reserveVehicle(deal: Doc<IDealerDeal>) {
     { returnDocument: "after" }
   );
   if (won) return;
+  await releaseLock(key, holder);
   const vehicle = await Vehicle.findById(deal.vehicleId).select("stockNo status").lean<{ stockNo: string; status: string }>();
   if (!vehicle) throw new ServiceError("NOT_FOUND", "Vehicle no longer exists", 404);
   if (vehicle.status === "sold") throw new ServiceError("CONFLICT", `${vehicle.stockNo} is already sold`, 409);
@@ -650,6 +674,7 @@ async function releaseVehicle(deal: Doc<IDealerDeal>) {
     { _id: deal.vehicleId, dealId: deal._id, status: { $in: ["reserved", "sold"] } },
     { $set: { status: "in_stock" }, $unset: { dealId: 1, soldAt: 1 } }
   );
+  await releaseLock(`vehicle:${deal.vehicleId}`, String(deal._id));
 }
 
 function financingFrom(input: DealInput["financing"]) {

@@ -1,4 +1,5 @@
 import { Schema, models, model, Types } from "mongoose";
+import { FitmentSchema, type IFitment } from "./Partners";
 
 export interface IBranchStock {
   branchCode: string;
@@ -19,6 +20,10 @@ export interface IShopListing {
   featured: boolean;
   tags: string[];
   fitment?: string;
+  /** Vehicles it fits; empty = universal for its car/bike `fit`. */
+  fitments?: IFitment[];
+  fitKeys?: string[];
+  universal?: boolean;
 }
 
 export interface IInventoryItem {
@@ -65,6 +70,9 @@ const ShopListingSchema = new Schema<IShopListing>(
     featured: { type: Boolean, default: false },
     tags: { type: [String], default: [] },
     fitment: String,
+    fitments: { type: [FitmentSchema], default: [] },
+    fitKeys: { type: [String], default: [] },
+    universal: { type: Boolean, default: true },
   },
   { _id: false }
 );

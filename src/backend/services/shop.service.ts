@@ -3,6 +3,7 @@
  * master (items with `shop.published`); fulfilment posts ordinary stock
  * vouchers, so stock, valuation and the ledger stay in one place.
  */
+import { editableFitments, fitmentFilter, fitmentKeys, normaliseFitments, type VehiclePick } from "@/lib/fitment";
 import type { z } from "zod";
 import { Types } from "mongoose";
 import { dbConnect } from "@/backend/config/database";
@@ -40,6 +41,8 @@ export type PublicProduct = {
   images: string[];
   description?: string;
   fitment?: string;
+  fitments: { make: string; model?: string; yearFrom?: number; yearTo?: number }[];
+  universal: boolean;
   tags: string[];
   featured: boolean;
   unit: string;
@@ -72,6 +75,8 @@ function toPublic(item: Item, branch: string): PublicProduct {
     images: shop.images || [],
     description: shop.description,
     fitment: shop.fitment,
+    fitments: editableFitments(shop.fitments),
+    universal: shop.universal !== false && !(shop.fitments || []).length,
     tags: shop.tags || [],
     featured: Boolean(shop.featured),
     unit: item.unit,
@@ -115,7 +120,7 @@ function event(order: { events: IShopOrder["events"] }, status: IShopOrder["even
 export const shopService = {
   /* ------------------------------------------------------------ catalogue */
 
-  async catalogue(f: { q?: string; category?: string; fit?: string; brand?: string; maxPrice?: number; sort?: string; page?: number; inStock?: boolean }) {
+  async catalogue(f: { q?: string; category?: string; fit?: string; brand?: string; maxPrice?: number; sort?: string; page?: number; inStock?: boolean } & VehiclePick & { universal?: boolean }) {
     await dbConnect();
     const settings = await shopSettings();
     const branch = settings.fulfilmentBranch.toUpperCase();
@@ -130,6 +135,9 @@ export const shopService = {
       const rx = new RegExp(esc(f.q.trim()), "i");
       query.$or = [{ name: rx }, { "shop.title": rx }, { "shop.brand": rx }, { "shop.tags": rx }, { sku: rx }, { "shop.fitment": rx }];
     }
+    // A chosen vehicle shows only parts that fit it (plus universal items if asked).
+    const fitQ = fitmentFilter("shop.fitKeys", f, Boolean(f.universal), "shop.universal");
+    if (fitQ) query.$and = [fitQ];
     const sorts: Record<string, Record<string, 1 | -1>> = {
       featured: { "shop.featured": -1, updatedAt: -1 },
       price_asc: { salePrice: 1 },
@@ -354,7 +362,8 @@ export const shopService = {
     let slug = slugify(data.slug || data.title || item.name) || item.sku.toLowerCase();
     const clash = await InventoryItem.exists({ _id: { $ne: item._id }, "shop.slug": slug });
     if (clash) slug = `${slug}-${item.sku.toLowerCase()}`.slice(0, 90);
-    item.shop = { ...data, slug, title: data.title || undefined };
+    const fitments = normaliseFitments(data.fitments || []);
+    item.shop = { ...data, slug, title: data.title || undefined, fitments, fitKeys: fitmentKeys(fitments), universal: fitments.length === 0 };
     item.markModified("shop");
     await item.save();
     return item.shop;

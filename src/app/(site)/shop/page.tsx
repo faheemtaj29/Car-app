@@ -5,6 +5,10 @@ import { CartBadge } from "@/components/marketplace/ShopClient";
 import { shopService } from "@/backend/services/shop.service";
 import { SHOP_CATEGORIES } from "@/lib/shop";
 import { formatPKR } from "@/lib/dealership";
+import { supplierService } from "@/backend/services/supplier.service";
+import { PartCard } from "@/components/marketplace/PartCard";
+import { VehiclePicker } from "@/components/marketplace/PartsUi";
+import { getMyCity } from "@/lib/i18n.server";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -24,14 +28,23 @@ export default async function ShopPage({ searchParams }: { searchParams: Search 
   const raw = await searchParams;
   const get = (k: string) => { const v = raw[k]; return (Array.isArray(v) ? v[0] : v) || undefined; };
   const num = (k: string) => (Number(get(k)) > 0 ? Number(get(k)) : undefined);
+  const kind: "car" | "bike" | undefined = get("kind") === "bike" ? "bike" : get("kind") === "car" ? "car" : undefined;
   const filters = {
-    q: get("q"), category: get("category"), fit: get("fit"), brand: get("brand"),
+    q: get("q"), category: get("category"), fit: kind || get("fit"), brand: get("brand"),
     maxPrice: num("maxPrice"), sort: get("sort"), page: num("page"), inStock: get("inStock") === "1",
   };
-  const data = await shopService.catalogue(filters);
+  // Picking a vehicle shows only parts that fit it (universal items only on request).
+  const vehicle = { kind, make: get("make"), model: get("model"), year: num("year"), universal: get("universal") === "1" };
+  const myCity = await getMyCity();
+  const [data, partsAll, partsLocal] = await Promise.all([
+    shopService.catalogue({ ...filters, ...vehicle }),
+    supplierService.search({ ...vehicle, q: filters.q, sort: filters.sort === "featured" ? undefined : filters.sort }),
+    myCity ? supplierService.search({ ...vehicle, q: filters.q, city: myCity }) : Promise.resolve(null),
+  ]);
+  const vehicleLabel = [vehicle.make, vehicle.model, vehicle.year].filter(Boolean).join(" ");
   const href = (patch: Record<string, string | undefined>) => {
     const qs = new URLSearchParams();
-    Object.entries({ ...filters, inStock: filters.inStock ? "1" : undefined, page: undefined, ...patch }).forEach(([k, v]) => {
+    Object.entries({ ...filters, ...vehicle, universal: vehicle.universal ? "1" : undefined, inStock: filters.inStock ? "1" : undefined, page: undefined, ...patch }).forEach(([k, v]) => {
       if (v !== undefined && v !== "") qs.set(k, String(v));
     });
     const s = qs.toString();
@@ -50,6 +63,14 @@ export default async function ShopPage({ searchParams }: { searchParams: Search 
           <CartBadge />
         </div>
       </div>
+      <VehiclePicker action="/shop" kind={kind || (filters.fit === "bike" ? "bike" : "car")} make={vehicle.make} model={vehicle.model} year={vehicle.year} universal={vehicle.universal} keep={{ category: filters.category, q: filters.q }} />
+      {vehicleLabel ? (
+        <div className="mk-understood">
+          <span>Showing only parts that fit</span><b>{vehicleLabel}</b>
+          {vehicle.universal ? <b>+ universal items</b> : null}
+          <Link href={href({ make: undefined, model: undefined, year: undefined, kind: undefined, universal: undefined })} className="site-link">Clear vehicle</Link>
+        </div>
+      ) : null}
       <div className="mk-type-tabs">
         <Link href={href({ fit: undefined })} className={!filters.fit ? "active" : ""}>All</Link>
         <Link href={href({ fit: "car" })} className={filters.fit === "car" ? "active" : ""}>🚗 For cars</Link>
@@ -96,12 +117,24 @@ export default async function ShopPage({ searchParams }: { searchParams: Search 
           <Link href="/shop" className="site-link">Clear filters</Link>
         </form>
         <div>
-          <div className="mk-results-head"><b>{data.total} products</b><a href="#filters" className="mk-filter-jump">Filter & sort ↓</a></div>
+          <div className="mk-results-head"><b>{data.total} products from our store</b><a href="#filters" className="mk-filter-jump">Filter & sort ↓</a></div>
           {data.products.length ? (
             <div className="mk-grid">{data.products.map((p) => <ProductCard key={p._id} p={p} />)}</div>
           ) : (
-            <div className="site-card"><h3>No products found</h3><p><Link href="/shop" className="site-link">See all products</Link></p></div>
+            <div className="site-card"><h3>No products found{vehicleLabel ? ` for ${vehicleLabel}` : ""}</h3><p><Link href="/shop" className="site-link">See all products</Link></p></div>
           )}
+          {partsLocal?.parts.length ? (
+            <div className="mk-block">
+              <div className="home-block-head"><h3>📍 From suppliers in {myCity} ({partsLocal.total})</h3></div>
+              <div className="mk-grid">{partsLocal.parts.map((p) => <PartCard key={p._id} p={p} />)}</div>
+            </div>
+          ) : null}
+          {partsAll.parts.length ? (
+            <div className="mk-block">
+              <div className="home-block-head"><h3>From registered suppliers across Pakistan ({partsAll.total})</h3><Link href="/suppliers" className="site-link">All suppliers →</Link></div>
+              <div className="mk-grid">{partsAll.parts.filter((p) => !partsLocal?.parts.some((x) => x._id === p._id)).map((p) => <PartCard key={p._id} p={p} />)}</div>
+            </div>
+          ) : null}
           {data.pages > 1 ? (
             <nav className="mk-pages" aria-label="Pages">
               {Array.from({ length: data.pages }, (_, i) => i + 1).map((p) => (

@@ -1,5 +1,6 @@
 "use client";
 
+import { makeListId, modelListId } from "@/components/CatalogLists";
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { AuthPanel, call, useMe } from "./Member";
@@ -95,8 +96,8 @@ export function GarageApp() {
         </div>
         <div className="site-form-section">Your vehicle</div>
         <div className="site-form-grid">
-          <label>Make<input value={f.make} onChange={(e) => set("make", e.target.value)} required /></label>
-          <label>Model<input value={f.model} onChange={(e) => set("model", e.target.value)} required /></label>
+          <label>Make<input value={f.make} onChange={(e) => set("make", e.target.value)} required list={makeListId(f.vehicleType)} autoComplete="off" /></label>
+          <label>Model<input value={f.model} onChange={(e) => set("model", e.target.value)} required list={modelListId(f.vehicleType, f.make)} autoComplete="off" /></label>
           <label>Variant<input value={f.variant} onChange={(e) => set("variant", e.target.value)} /></label>
           <label>Model year<input type="number" value={f.year} onChange={(e) => set("year", e.target.value)} required /></label>
           <label>Engine (cc)<input type="number" min={0} value={f.engineCc} onChange={(e) => set("engineCc", e.target.value)} /></label>

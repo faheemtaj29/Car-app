@@ -3,6 +3,51 @@ import { AD_STATUSES, ORDER_STATUSES, PAYMENT_METHODS, type AdStatus, type Order
 
 /* ------------------------------------------------- public member accounts */
 
+export const ACCOUNT_TYPES = ["individual", "dealer", "supplier"] as const;
+export type AccountType = (typeof ACCOUNT_TYPES)[number];
+export const KYC_STATUSES = ["none", "pending", "verified", "rejected"] as const;
+export type KycStatus = (typeof KYC_STATUSES)[number];
+export const BUSINESS_STATUSES = ["pending", "approved", "rejected", "suspended"] as const;
+export type BusinessStatus = (typeof BUSINESS_STATUSES)[number];
+
+/**
+ * Identity record kept for legal and fraud-prevention purposes only. Never
+ * sent to the public site: the CNIC number is encrypted and only admins can
+ * read it (each view is audit-logged). No copy of the ID card is collected.
+ */
+export interface IKyc {
+  status: KycStatus;
+  legalName?: string;
+  cnicEnc?: string;
+  cnicHash?: string;
+  cnicLast4?: string;
+  address?: string;
+  city?: string;
+  consentAt?: Date;
+  submittedAt?: Date;
+  reviewedAt?: Date;
+  reviewedBy?: string;
+  reviewNote?: string;
+}
+
+/** Public profile of a dealership or parts supplier that registered on the site. */
+export interface IBusiness {
+  name: string;
+  slug: string;
+  status: BusinessStatus;
+  ntn?: string;
+  address: string;
+  city: string;
+  phone: string;
+  whatsapp?: string;
+  about?: string;
+  categories?: string[];
+  submittedAt?: Date;
+  reviewedAt?: Date;
+  reviewNote?: string;
+}
+
+
 /** Buyers / private sellers on the public site. Kept apart from staff `User`s. */
 export interface IMarketMember {
   name: string;
@@ -17,6 +62,9 @@ export interface IMarketMember {
   /** Staff checked the seller's CNIC in person. */
   idVerified?: boolean;
   idVerifiedAt?: Date;
+  accountType: AccountType;
+  kyc?: IKyc;
+  business?: IBusiness;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,6 +82,36 @@ const MarketMemberSchema = new Schema<IMarketMember>(
     lockedUntil: Date,
     idVerified: { type: Boolean, default: false },
     idVerifiedAt: Date,
+    accountType: { type: String, enum: ACCOUNT_TYPES, default: "individual" },
+    kyc: {
+      status: { type: String, enum: KYC_STATUSES, default: "none" },
+      legalName: String,
+      cnicEnc: { type: String, select: false },
+      cnicHash: { type: String, index: true },
+      cnicLast4: String,
+      address: { type: String, select: false },
+      city: String,
+      consentAt: Date,
+      submittedAt: Date,
+      reviewedAt: Date,
+      reviewedBy: String,
+      reviewNote: String,
+    },
+    business: {
+      name: String,
+      slug: { type: String, index: true },
+      status: { type: String, enum: BUSINESS_STATUSES },
+      ntn: String,
+      address: String,
+      city: String,
+      phone: String,
+      whatsapp: String,
+      about: String,
+      categories: { type: [String], default: undefined },
+      submittedAt: Date,
+      reviewedAt: Date,
+      reviewNote: String,
+    },
   },
   { timestamps: true }
 );

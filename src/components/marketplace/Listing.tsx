@@ -55,7 +55,7 @@ export function ListingCard({ car }: { car: PublicListing }) {
         <div className="mk-card-foot">
           <span>{car.city || car.branch?.name || ""}</span>
           <span className="mk-badges">
-            <span className={`mk-seller-badge ${car.seller.type}`}>{car.seller.type === "dealer" ? "Dealer" : "Private"}</span>
+            <span className={`mk-seller-badge ${car.seller.business ? "dealer" : car.seller.type}`} title={car.seller.business?.name}>{car.seller.type === "dealer" ? "Dealer" : car.seller.business ? "Dealer" : "Private"}</span>
             <InspectionBadge score={car.inspection?.overall} />
             <PriceBadge insight={car.insight} />
           </span>

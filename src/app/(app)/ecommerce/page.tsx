@@ -1,5 +1,8 @@
 "use client";
 
+import { FitmentEditor, type FitRow } from "@/components/FitmentEditor";
+import { SupplierProducts } from "@/components/dealership/Partners";
+import { editableFitments } from "@/lib/fitment";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { EmptyState, Field, Hero, ModalForm, Panel, inputClass } from "@/components/ui";
@@ -10,7 +13,7 @@ import { prettyDate } from "@/lib/format";
 
 type Listing = {
   published: boolean; slug: string; title?: string; brand?: string; shopCategory: string; fit: "car" | "bike" | "universal";
-  description?: string; images: string[]; compareAtPrice?: number; featured: boolean; tags: string[]; fitment?: string;
+  description?: string; images: string[]; compareAtPrice?: number; featured: boolean; tags: string[]; fitment?: string; fitments?: FitRow[];
 };
 type Product = { _id: string; sku: string; name: string; category: string; unit: string; salePrice: number; unitCost: number; available: number; shop: Listing | null };
 type Order = {
@@ -26,7 +29,7 @@ type Settings = {
 };
 type Overview = { settings: Settings; orders: Order[]; counts: Record<string, number>; mtd: { orders: number; revenue: number }; products: Product[] };
 
-const TABS = [["orders", "Orders"], ["products", "Products"], ["coupons", "Coupons"], ["settings", "Settings"]] as const;
+const TABS = [["orders", "Orders"], ["products", "Products"], ["suppliers", "Supplier products"], ["coupons", "Coupons"], ["settings", "Settings"]] as const;
 type Tab = (typeof TABS)[number][0];
 
 export default function EcommercePage() {
@@ -127,6 +130,7 @@ export default function EcommercePage() {
 
       {data && tab === "products" ? <ProductsTab products={data.products} branch={data.settings.fulfilmentBranch} onChanged={load} /> : null}
       {data && tab === "coupons" ? <CouponsTab isAdmin={role === "admin"} /> : null}
+      {tab === "suppliers" ? <SupplierProducts /> : null}
       {data && tab === "settings" ? <SettingsTab settings={data.settings} isAdmin={role === "admin"} onSaved={load} /> : null}
     </>
   );
@@ -246,7 +250,7 @@ function ProductsTab({ products, branch, onChanged }: { products: Product[]; bra
 
   function edit(p: Product) {
     setEditing(p);
-    setForm(p.shop ? { ...p.shop } : blankListing(p));
+    setForm(p.shop ? { ...p.shop, fitments: editableFitments(p.shop.fitments) } : blankListing(p));
     setTags((p.shop?.tags || []).join(", "));
     setErr("");
   }
@@ -257,7 +261,7 @@ function ProductsTab({ products, branch, onChanged }: { products: Product[]; bra
     try {
       await api(`/api/shop/products/${editing._id}`, {
         method: "PUT",
-        json: { ...form, compareAtPrice: form.compareAtPrice || undefined, tags: tags.split(",").map((x) => x.trim()).filter(Boolean) },
+        json: { ...form, fitments: (form.fitments || []).filter((f) => f.make.trim()).map((f) => ({ ...f, model: f.model || undefined })), compareAtPrice: form.compareAtPrice || undefined, tags: tags.split(",").map((x) => x.trim()).filter(Boolean) },
       });
       setEditing(null);
       onChanged();
@@ -361,7 +365,10 @@ function ProductsTab({ products, branch, onChanged }: { products: Product[]; bra
               <Field label="URL slug"><input className={inputClass} value={form.slug} onChange={(e) => set("slug", e.target.value)} placeholder="auto from title" /></Field>
             </div>
             <Field label="Search tags (comma separated)"><input className={inputClass} value={tags} onChange={(e) => setTags(e.target.value)} placeholder="10w40, synthetic, engine oil" /></Field>
-            <Field label="Fits / compatibility"><textarea className={inputClass} rows={2} value={form.fitment || ""} onChange={(e) => set("fitment", e.target.value)} placeholder="Toyota Corolla 2014–2024, Honda Civic 2016+" /></Field>
+            <Field label="Fits / compatibility (shown as text)"><textarea className={inputClass} rows={2} value={form.fitment || ""} onChange={(e) => set("fitment", e.target.value)} placeholder="Toyota Corolla 2014–2024, Honda Civic 2016+" /></Field>
+            <Field label="Vehicles it fits (used by 'parts for my car' search; leave empty for universal items)">
+              <FitmentEditor value={form.fitments || []} onChange={(v) => set("fitments", v)} kind={form.fit === "bike" ? "bike" : "car"} />
+            </Field>
             <Field label="Description"><textarea className={inputClass} rows={4} value={form.description || ""} onChange={(e) => set("description", e.target.value)} /></Field>
             <div className="form-grid">
               <label className="check-row"><input type="checkbox" checked={form.published} onChange={(e) => set("published", e.target.checked)} /> Live on the shop</label>

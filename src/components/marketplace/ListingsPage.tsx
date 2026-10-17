@@ -2,9 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ListingCard } from "@/components/marketplace/Listing";
 import { SaveSearchButton } from "@/components/marketplace/Alerts";
-import { getT } from "@/lib/i18n.server";
+import { getMyCity, getT } from "@/lib/i18n.server";
 import { marketplaceService, parseListingFilters } from "@/backend/services/marketplace.service";
 import { formatPKRShort } from "@/lib/dealership";
+import { CITIES, makesFor } from "@/lib/catalog";
+import { modelListId } from "@/components/CatalogLists";
 import { BODY_TYPES } from "@/lib/shop";
 
 export type Search = Promise<{ [key: string]: string | string[] | undefined }>;
@@ -37,15 +39,40 @@ export async function ListingsPage({ type, searchParams }: { type: "car" | "bike
   if (parsed.ask && parsed.type && parsed.type !== type) {
     redirect(`/${parsed.type === "bike" ? "bikes" : "cars"}?ask=${encodeURIComponent(parsed.ask)}`);
   }
-  const filters = { ...parsed, type };
+  // City-first: a buyer who picked "Islamabad" sees Islamabad cars unless
+  // they choose another city or "All Pakistan" (city=all).
+  const myCity = await getMyCity();
+  const cityParam = get("city");
+  const allPakistan = cityParam === "all";
+  const cityDefaulted = !allPakistan && !parsed.city && Boolean(myCity);
+  const filters = { ...parsed, type, city: allPakistan ? undefined : parsed.city || myCity };
   const base = type === "bike" ? "/bikes" : "/cars";
   const noun = type === "bike" ? "bike" : "car";
-  const [{ listings, total, page, pages }, facets, flags, { t }] = await Promise.all([
+  const [firstPage, facets, flags, { t }, counts] = await Promise.all([
     marketplaceService.search(filters),
     marketplaceService.facets(filters),
     marketplaceService.navFlags(),
     getT(),
+    marketplaceService.cityCounts(filters),
   ]);
+  let { listings, total, page, pages } = firstPage;
+  // Nothing in the buyer's own city: show all of Pakistan rather than an empty page.
+  let fellBack = false;
+  if (cityDefaulted && total === 0 && counts.allCities > 0) {
+    ({ listings, total, page, pages } = await marketplaceService.search({ ...filters, city: undefined }));
+    fellBack = true;
+  }
+  /** Same search, different city / registration city. */
+  const withParam = (patch: Record<string, string | undefined>) => {
+    const qs = new URLSearchParams();
+    Object.entries(raw).forEach(([k, v]) => {
+      if (k === "page" || k in patch) return;
+      (Array.isArray(v) ? v : [v]).forEach((val) => val && qs.append(k, val));
+    });
+    Object.entries(patch).forEach(([k, v]) => v && qs.set(k, v));
+    return `${base}?${qs.toString()}`;
+  };
+  const otherCities = counts.cities.filter((c) => c.city.toLowerCase() !== (filters.city || "").toLowerCase());
   const years = Array.from({ length: facets.maxYear - facets.minYear + 1 }, (_, i) => facets.maxYear - i);
 
   const searchQs = new URLSearchParams();
@@ -113,14 +140,33 @@ export async function ListingsPage({ type, searchParams }: { type: "car" | "bike
           <label>Make
             <select name="make" defaultValue={filters.make || ""}>
               <option value="">Any make</option>
-              {facets.makes.map((m) => <option key={m.value} value={m.value}>{m.value} ({m.count})</option>)}
+              {makesFor(type, facets.makes.map((m) => m.value)).map((m) => {
+                const n = facets.makes.find((x) => x.value.toLowerCase() === m.toLowerCase())?.count;
+                return <option key={m} value={m}>{m}{n ? ` (${n})` : ""}</option>;
+              })}
             </select>
           </label>
-          <label>Model<input name="model" defaultValue={filters.model} placeholder="Any model" /></label>
+          <label>Model<input name="model" defaultValue={filters.model} placeholder={filters.make ? `Any ${filters.make} model` : "Any model"} list={filters.make ? modelListId(type, filters.make) : undefined} autoComplete="off" /></label>
           <label>City
-            <select name="city" defaultValue={filters.city || ""}>
-              <option value="">Any city</option>
-              {facets.cities.map((m) => <option key={m.value} value={m.value}>{m.value} ({m.count})</option>)}
+            <select name="city" defaultValue={filters.city || "all"}>
+              <option value="all">All Pakistan</option>
+              {(() => {
+                const counted = new Map(facets.cities.map((c) => [c.value.toLowerCase(), c]));
+                const withCars = facets.cities.map((c) => <option key={c.value} value={c.value}>{c.value} ({c.count})</option>);
+                const others = CITIES.filter((c) => !counted.has(c.toLowerCase())).map((c) => <option key={c} value={c}>{c}</option>);
+                return (
+                  <>
+                    {withCars.length ? <optgroup label="Cities with listings">{withCars}</optgroup> : null}
+                    <optgroup label="All cities">{others}</optgroup>
+                  </>
+                );
+              })()}
+            </select>
+          </label>
+          <label>Registered in (number plate city)
+            <select name="regCity" defaultValue={filters.regCity || ""}>
+              <option value="">Any</option>
+              {CITIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           </label>
           <div className="mk-pair">
@@ -208,6 +254,31 @@ export async function ListingsPage({ type, searchParams }: { type: "car" | "bike
         </form>
 
         <div>
+          <div className="cc">
+            <div className="cc-row">
+              {fellBack ? (
+                <span className="cc-now">📍 None in {filters.city} yet — showing all Pakistan: <b>{total}</b></span>
+              ) : filters.city ? (
+                <span className="cc-now">📍 {filters.city}{cityDefaulted ? <small> (your city)</small> : null}: <b>{total}</b></span>
+              ) : (
+                <span className="cc-now">📍 All Pakistan: <b>{counts.allCities}</b></span>
+              )}
+              {otherCities.slice(0, 12).map((c) => (
+                <Link key={c.city} href={withParam({ city: c.city })} className="cc-chip">{c.city} <b>{c.count}</b></Link>
+              ))}
+              {otherCities.length > 12 ? <details className="cc-more"><summary>+{otherCities.length - 12} more cities</summary>{otherCities.slice(12).map((c) => <Link key={c.city} href={withParam({ city: c.city })} className="cc-chip">{c.city} <b>{c.count}</b></Link>)}</details> : null}
+              {filters.city ? <Link href={withParam({ city: "all" })} className="cc-chip all">All Pakistan <b>{counts.allCities}</b></Link> : null}
+            </div>
+            {counts.regCities.length ? (
+              <div className="cc-row reg">
+                <span className="cc-now">🔢 Registered in:</span>
+                {counts.regCities.slice(0, 12).map((c) => (
+                  <Link key={c.city} href={withParam({ regCity: c.city })} className={`cc-chip${filters.regCity?.toLowerCase() === c.city.toLowerCase() ? " on" : ""}`}>{c.city} <b>{c.count}</b></Link>
+                ))}
+                {filters.regCity ? <Link href={withParam({ regCity: undefined })} className="cc-chip all">Any registration</Link> : null}
+              </div>
+            ) : null}
+          </div>
           <div className="mk-results-head">
             <b>{total.toLocaleString()} {total === 1 ? noun : `${noun}s`} found</b>
             <SaveSearchButton query={savedQuery} label={savedLabel} />

@@ -1,5 +1,6 @@
 "use client";
 
+import { CITY_LIST_ID, makeListId, modelListId } from "@/components/CatalogLists";
 import { FormEvent, useState } from "react";
 import { formatPKR } from "@/lib/dealership";
 import type { InstantOffer } from "@/backend/services/offer.service";
@@ -187,8 +188,8 @@ export function SellCarForm() {
     <form className="site-form" onSubmit={submit}>
       <div className="site-form-section">Your car</div>
       <div className="site-form-grid">
-        <label>Make<input value={form.make} onChange={(e) => set("make", e.target.value)} required placeholder="Toyota" /></label>
-        <label>Model<input value={form.model} onChange={(e) => set("model", e.target.value)} required placeholder="Corolla" /></label>
+        <label>Make<input value={form.make} onChange={(e) => set("make", e.target.value)} required placeholder="Toyota" list={makeListId("car")} autoComplete="off" /></label>
+        <label>Model<input value={form.model} onChange={(e) => set("model", e.target.value)} required placeholder="Corolla" list={modelListId("car", form.make)} autoComplete="off" /></label>
         <label>Model year
           <select value={form.year} onChange={(e) => set("year", e.target.value)}>
             {Array.from({ length: 35 }, (_, k) => year - k).map((y) => <option key={y}>{y}</option>)}
@@ -224,7 +225,7 @@ export function SellCarForm() {
       <div className="site-form-grid">
         <label>Full name<input value={form.name} onChange={(e) => set("name", e.target.value)} required minLength={2} /></label>
         <label>Mobile number<input value={form.phone} onChange={(e) => set("phone", e.target.value)} required inputMode="tel" placeholder="03xx-xxxxxxx" /></label>
-        <label>City<input value={form.city} onChange={(e) => set("city", e.target.value)} required /></label>
+        <label>City<input value={form.city} onChange={(e) => set("city", e.target.value)} required list={CITY_LIST_ID} autoComplete="off" /></label>
       </div>
       <label className="site-form-wide">Anything else?<textarea rows={3} value={form.message} onChange={(e) => set("message", e.target.value)} /></label>
       <input className="mk-hp" tabIndex={-1} autoComplete="off" value={form.website} onChange={(e) => set("website", e.target.value)} aria-hidden="true" />

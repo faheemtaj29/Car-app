@@ -5,6 +5,7 @@ import { marketplaceService } from "@/backend/services/marketplace.service";
 import { shopService } from "@/backend/services/shop.service";
 import { settingsService } from "@/backend/services/settings.service";
 import { SHOP_CATEGORIES } from "@/lib/shop";
+import { CITIES, MAJOR_CITIES } from "@/lib/catalog";
 import { getT } from "@/lib/i18n.server";
 import { RecentlyViewed } from "@/components/marketplace/Extras";
 
@@ -47,7 +48,7 @@ export default async function HomePage() {
             <input name="q" placeholder="Make or model, e.g. Corolla, Civic, CG 125" aria-label="Search" />
             <select name="city" aria-label="City" defaultValue="">
               <option value="">All cities</option>
-              {facets.cities.map((c) => <option key={c.value} value={c.value}>{c.value}</option>)}
+              {[...new Set([...facets.cities.map((c) => c.value), ...MAJOR_CITIES, ...CITIES])].map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
             <select name="maxPrice" aria-label="Budget" defaultValue="">
               <option value="">Any budget</option>

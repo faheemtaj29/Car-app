@@ -14,6 +14,7 @@ import { ServiceError } from "@/backend/types";
 import { priceInsight, type PriceInsight } from "@/lib/dealership";
 import { parseSmartQuery } from "@/lib/smartSearch";
 import { offerService } from "@/backend/services/offer.service";
+import { partnerService } from "@/backend/services/partner.service";
 import type { inquirySchema, sellRequestSchema } from "@/backend/validators/dealership.validator";
 
 type Doc<T> = T & { _id: Types.ObjectId };
@@ -53,6 +54,10 @@ export type ListingFilters = {
   minFuelAvg?: number;
   minCc?: number;
   maxCc?: number;
+  /** Only this member's ads (a registered dealer's page). */
+  sellerMember?: string;
+  /** City the car is registered in (number-plate city). */
+  regCity?: string;
   /** Only listings published after this time (saved-search alerts). */
   since?: Date;
   /** The plain-language query and what we read from it. */
@@ -65,7 +70,14 @@ export type ListingFilters = {
 export type PublicListing = {
   _id: string;
   vehicleType: "car" | "bike";
-  seller: { type: "dealer" | "private"; name?: string; phone?: string; memberSince?: string };
+  seller: {
+    type: "dealer" | "private";
+    name?: string;
+    phone?: string;
+    memberSince?: string;
+    /** Set when a private ad belongs to a registered, approved dealership. */
+    business?: { name: string; slug: string; city: string; verified: boolean };
+  };
   negotiable?: boolean;
   title: string;
   make: string;
@@ -135,6 +147,7 @@ function baseQuery(f: ListingFilters) {
   if (f.accidentFree) q["specs.accidentHistory"] = "No accident";
   if (f.genuinePaint) q["specs.paint"] = "Total genuine";
   const and: Record<string, unknown>[] = [];
+  if (f.regCity) and.push({ $or: [{ registeredIn: exact(f.regCity) }, { "specs.registrationCity": exact(f.regCity) }] });
   if (f.features?.length) and.push(...f.features.map((x) => ({ features: exact(x) })));
   if (f.bodies?.length && !f.body) q.bodyType = { $in: f.bodies };
   else if (f.excludeBodies?.length && !f.body) q.bodyType = { $nin: f.excludeBodies };
@@ -160,7 +173,9 @@ function dealerQuery(f: ListingFilters) {
 }
 
 function privateQuery(f: ListingFilters) {
-  return { ...baseQuery(f), status: "active", expiresAt: { $gt: new Date() } };
+  const q: Record<string, unknown> = { ...baseQuery(f), status: "active", expiresAt: { $gt: new Date() } };
+  if (f.sellerMember && Types.ObjectId.isValid(f.sellerMember)) q.memberId = new Types.ObjectId(f.sellerMember);
+  return q;
 }
 
 /** Private ads are excluded when the buyer asks for inspected or dealer-only stock. */
@@ -417,6 +432,18 @@ async function mergedFacet(field: string, f: ListingFilters, extra: Record<strin
   return [...map.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([value, count]) => ({ value, count }));
 }
 
+/** Adds the registered-dealer card to ads posted by approved dealerships. */
+async function withBusiness<T extends PublicListing>(list: T[]): Promise<T[]> {
+  const ids = list.filter((l) => l.seller.type === "private" && l.sellerId).map((l) => l.sellerId!);
+  if (!ids.length) return list;
+  const map = await partnerService.businessMap(ids);
+  return list.map((l) => {
+    const b = l.sellerId ? map.get(l.sellerId) : undefined;
+    if (!b || b.type !== "dealer") return l;
+    return { ...l, seller: { ...l.seller, name: b.name, business: { name: b.name, slug: b.slug, city: b.city, verified: b.verified } } };
+  });
+}
+
 export const marketplaceService = {
   async hasListings() {
     const flags = await this.navFlags();
@@ -455,7 +482,7 @@ export const marketplaceService = {
     ]);
     const insights = await insightsFor(rows);
     return {
-      listings: rows.map((r) => anyToPublic(r, insights, branches)),
+      listings: await withBusiness(rows.map((r) => anyToPublic(r, insights, branches))),
       total,
       page,
       pages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
@@ -481,6 +508,41 @@ export const marketplaceService = {
     };
   },
 
+  /**
+   * How many matching cars each city has (and each registration city), for
+   * the "Islamabad (12) · Lahore (30)…" strip. Counted in code from a light
+   * projection so it runs the same on every MongoDB-compatible store.
+   */
+  async cityCounts(f: ListingFilters) {
+    await dbConnect();
+    const rows = async (filters: ListingFilters) => {
+      const fields = "city registeredIn specs.registrationCity";
+      const [dealer, ads] = await Promise.all([
+        f.seller === "private" ? Promise.resolve([]) : Vehicle.find(dealerQuery(filters)).select(fields).limit(10000).lean<{ city?: string; specs?: { registrationCity?: string } }[]>(),
+        includePrivate(filters) ? ClassifiedAd.find(privateQuery(filters)).select(fields).limit(10000).lean<{ city?: string; registeredIn?: string; specs?: { registrationCity?: string } }[]>() : Promise.resolve([]),
+      ]);
+      return [...dealer, ...ads] as { city?: string; registeredIn?: string; specs?: { registrationCity?: string } }[];
+    };
+    const tally = (values: (string | undefined)[]) => {
+      const map = new Map<string, { city: string; count: number }>();
+      for (const v of values) {
+        const c = v?.trim();
+        if (!c) continue;
+        const k = c.toLowerCase();
+        const cur = map.get(k) || { city: c, count: 0 };
+        cur.count++;
+        map.set(k, cur);
+      }
+      return [...map.values()].sort((a, b) => b.count - a.count || a.city.localeCompare(b.city));
+    };
+    const [byCity, byReg] = await Promise.all([rows({ ...f, city: undefined, page: 1 }), rows({ ...f, regCity: undefined, page: 1 })]);
+    return {
+      cities: tally(byCity.map((r) => r.city)),
+      regCities: tally(byReg.map((r) => r.registeredIn || r.specs?.registrationCity)),
+      allCities: byCity.length,
+    };
+  },
+
   /** Several listings by id (Saved / Compare pages). No view counting; unknown ids are skipped. */
   async listingsByIds(ids: string[]) {
     await dbConnect();
@@ -494,10 +556,12 @@ export const marketplaceService = {
     const rows: AnyListing[] = [...dealer, ...ads.map((a) => ({ ...a, _src: "private" as const }))];
     const insights = await insightsFor(rows);
     const byId = new Map(rows.map((r) => [String(r._id), r]));
-    return valid.flatMap((id) => {
-      const row = byId.get(id);
-      return row ? [anyToPublic(row, insights, branches)] : [];
-    });
+    return withBusiness(
+      valid.flatMap((id) => {
+        const row = byId.get(id);
+        return row ? [anyToPublic(row, insights, branches)] : [];
+      })
+    );
   },
 
   /** Everything public, for the XML sitemap. */
@@ -538,10 +602,8 @@ export const marketplaceService = {
     const { rows: pool } = await unionSearch({ ...similarFilter, make: row.make }, SORTS.newest, 0, 8);
     const similarRows = pool.filter((p) => String(p._id) !== String(row!._id)).slice(0, 4);
     const [insights, branches] = await Promise.all([insightsFor([row, ...similarRows]), branchMap()]);
-    return {
-      listing: anyToPublic(row, insights, branches),
-      similar: similarRows.map((r) => anyToPublic(r, insights, branches)),
-    };
+    const [listing, ...similar] = await withBusiness([row, ...similarRows].map((r) => anyToPublic(r, insights, branches)));
+    return { listing, similar };
   },
 
   /** "Contact dealer" on a listing → lead in the CRM (or an activity on an existing one). */
@@ -685,7 +747,7 @@ export function parseListingFilters(get: (key: string) => string | null | undefi
     q: str("q"),
     make: str("make"),
     model: str("model"),
-    city: str("city"),
+    city: str("city") === "all" ? undefined : str("city"),
     body: str("body"),
     fuel: str("fuel"),
     transmission: str("transmission"),
@@ -701,6 +763,7 @@ export function parseListingFilters(get: (key: string) => string | null | undefi
     accidentFree: get("accidentFree") === "1",
     genuinePaint: get("genuinePaint") === "1",
     features: (get("feat") || "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, 10),
+    regCity: str("regCity"),
     sort: str("sort"),
     page: n("page"),
   };

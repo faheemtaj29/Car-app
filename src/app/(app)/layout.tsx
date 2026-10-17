@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { CatalogLists } from "@/components/CatalogLists";
 import { getSession } from "@/backend/lib/cookies";
 import { settingsService } from "@/backend/services/settings.service";
 import { AppShell } from "@/components/AppShell";
@@ -13,6 +14,7 @@ export default async function BackOfficeLayout({ children }: { children: React.R
   return (
     <AppShell user={session} businessName={name}>
       {children}
+      <CatalogLists />
     </AppShell>
   );
 }

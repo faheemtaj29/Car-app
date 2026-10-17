@@ -60,6 +60,8 @@ const member = async (name, phone) => {
 /* ------------------------------------------------- 1. listing history */
 const civic = await vehicle({ make: "Honda", model: "Civic", variant: "Oriel", year: 2019, mileage: 80000, listPrice: 5600000, registrationNo: "LEA-19-7788", fuel: "Petrol", transmission: "Automatic", engineCc: 1800 });
 const ali = await member("Ali Raza", "0301-1112233");
+r = await ali.req("POST", "/api/site/partner/kyc", { legalName: "Ali Raza", cnic: "35202-7654321-3", address: "House 9, Street 3, Model Town", city: "Lahore", consent: true });
+check("Ali gives identity before selling", r.status === 200, r.data.error);
 const upFd = new FormData();
 upFd.append("file", new Blob([Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64")], { type: "image/png" }), "c.png");
 const aliPhoto = (await ali.req("POST", "/api/site/member/upload", undefined, { form: upFd })).data.url;

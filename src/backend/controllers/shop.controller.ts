@@ -149,6 +149,11 @@ export const shopPublicController = {
           sort: p.get("sort") || undefined,
           page: num("page"),
           inStock: p.get("inStock") === "1",
+          kind: p.get("kind") === "bike" ? "bike" : p.get("kind") === "car" ? "car" : undefined,
+          make: p.get("make") || undefined,
+          model: p.get("model") || undefined,
+          year: num("year"),
+          universal: p.get("universal") === "1",
         })
       );
     } catch (e) {

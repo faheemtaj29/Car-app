@@ -1,5 +1,6 @@
 "use client";
 
+import { CITY_LIST_ID, makeListId, modelListId } from "@/components/CatalogLists";
 import { VehicleSpecsEditor } from "@/components/VehicleSpecsEditor";
 import { FeatureChecklist, SpecTables } from "@/components/VehicleSpecsView";
 import type { Specs } from "@/lib/vehicleSpecs";
@@ -381,8 +382,8 @@ export function DealershipInventory({
               <option value="bike">Motorbike</option>
             </select>
           </Field>
-          <Field label="Make" required><input className={inputClass} value={form.make} onChange={(e) => set("make", e.target.value)} required placeholder="Toyota" /></Field>
-          <Field label="Model" required><input className={inputClass} value={form.model} onChange={(e) => set("model", e.target.value)} required placeholder="Corolla" /></Field>
+          <Field label="Make" required><input className={inputClass} value={form.make} onChange={(e) => set("make", e.target.value)} required placeholder="Toyota" list={makeListId(form.vehicleType)} autoComplete="off" /></Field>
+          <Field label="Model" required><input className={inputClass} value={form.model} onChange={(e) => set("model", e.target.value)} required placeholder="Corolla" list={modelListId(form.vehicleType, form.make)} autoComplete="off" /></Field>
           <Field label="Variant / trim"><input className={inputClass} value={form.variant} onChange={(e) => set("variant", e.target.value)} placeholder="Altis Grande 1.8" /></Field>
           <Field label="Model year" required><input className={inputClass} type="number" value={form.year} onChange={(e) => set("year", e.target.value)} required /></Field>
           <Field label="VIN / chassis (17)"><input className={inputClass} value={form.vin} maxLength={17} onChange={(e) => set("vin", e.target.value.toUpperCase())} /></Field>
@@ -468,7 +469,7 @@ export function DealershipInventory({
             <input type="checkbox" checked={form.featured} onChange={(e) => set("featured", e.target.checked)} /> Featured listing (shown first)
           </label>
           <Field label="Video walkaround (YouTube / Facebook / TikTok link)"><input className={inputClass} value={form.videoUrl} onChange={(e) => set("videoUrl", e.target.value)} placeholder="https://youtu.be/…" /></Field>
-          <Field label="City shown on listing"><input className={inputClass} value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="Lahore" /></Field>
+          <Field label="City shown on listing"><input className={inputClass} value={form.city} onChange={(e) => set("city", e.target.value)} placeholder="Lahore" list={CITY_LIST_ID} autoComplete="off" /></Field>
         </div>
         <Field label="Public description"><textarea className={inputClass} rows={3} value={form.description} onChange={(e) => set("description", e.target.value)} placeholder="Bumper-to-bumper original, first owner, complete service history…" /></Field>
       </ModalForm>

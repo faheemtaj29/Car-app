@@ -183,6 +183,8 @@ r = await seller.req("POST", "/api/site/member/register", { name: "Bilal Ahmed",
 check("register seller", r.status === 201 && seller.cookies.market_member, r.data.error || "");
 r = await new Client("x").req("POST", "/api/site/member/register", { name: "Dup", phone: "+923335556666", password: "goodpass123" });
 check("duplicate phone (different format) refused", r.status === 409, r.data.error);
+r = await seller.req("POST", "/api/site/partner/kyc", { legalName: "Bilal Ahmed", cnic: "42101-1234567-1", address: "House 4, Block 2, Gulshan-e-Iqbal", city: "Karachi", consent: true });
+check("seller gives identity (CNIC) before selling", r.status === 200 && r.data.kyc?.status === "pending", r.data.error);
 
 // security: member token must not work as staff session
 const forged = new Client("forged"); forged.cookies.am_session = seller.cookies.market_member;

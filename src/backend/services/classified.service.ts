@@ -10,6 +10,7 @@ import { ServiceError, type SessionUser } from "@/backend/types";
 import type { MemberSession } from "@/backend/lib/memberSession";
 import { AD_LIMITS } from "@/lib/shop";
 import { historyService, nextPriceDrop } from "@/backend/services/history.service";
+import { partnerService } from "@/backend/services/partner.service";
 import type {
   adModerationSchema,
   classifiedAdSchema,
@@ -121,13 +122,16 @@ export const classifiedService = {
     await dbConnect();
     const settings = await shopSettings();
     if (!settings.classifiedsEnabled) throw new ServiceError("FORBIDDEN", "Posting ads is currently closed", 403);
+    const gate = await partnerService.sellerGate(member.id, "vehicle");
     await expireStaleAds();
+    const limit = gate.type === "dealer" ? AD_LIMITS.maxDealerAds : AD_LIMITS.maxOpenAds;
     const open = await ClassifiedAd.countDocuments({ memberId: member.id, status: { $in: ["pending", "active"] } });
-    if (open >= AD_LIMITS.maxOpenAds) {
-      throw new ServiceError("CONFLICT", `You can have at most ${AD_LIMITS.maxOpenAds} live or pending ads. Mark one as sold first.`, 409);
+    if (open >= limit) {
+      throw new ServiceError("CONFLICT", `You can have at most ${limit} live or pending ads. Mark one as sold first.`, 409);
     }
     const now = new Date();
-    const live = !settings.moderateAds;
+    // Approved dealers with a verified owner are trusted: their stock goes live at once.
+    const live = !settings.moderateAds || gate.trusted;
     const ad = await ClassifiedAd.create({
       ...adPayload(data),
       memberId: member.id,
@@ -147,11 +151,12 @@ export const classifiedService = {
       throw new ServiceError("CONFLICT", `A ${ad.status} ad cannot be edited`, 409);
     }
     const settings = await shopSettings();
+    const gate = await partnerService.sellerGate(member.id, "vehicle");
     const priceDrop = nextPriceDrop(ad.listPrice, data.listPrice, ad.priceDrop);
     Object.assign(ad, adPayload(data));
     ad.priceDrop = priceDrop;
     // Edited content is reviewed again so an approved ad cannot be swapped for spam.
-    if (settings.moderateAds && ad.status !== "pending") {
+    if (settings.moderateAds && ad.status !== "pending" && !gate.trusted) {
       ad.status = "pending";
       ad.rejectReason = undefined;
     }

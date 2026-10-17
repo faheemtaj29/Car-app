@@ -37,7 +37,7 @@ export const AD_STATUSES = ["pending", "active", "rejected", "sold", "expired", 
 export type AdStatus = (typeof AD_STATUSES)[number];
 
 /** Business limits for private sellers. */
-export const AD_LIMITS = { maxOpenAds: 5, maxPhotos: 10, daysLive: 30 } as const;
+export const AD_LIMITS = { maxOpenAds: 5, maxDealerAds: 200, maxPhotos: 10, daysLive: 30 } as const;
 export const CART_LIMITS = { maxLines: 30, maxQtyPerLine: 10 } as const;
 
 export function slugify(text: string) {

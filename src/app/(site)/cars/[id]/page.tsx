@@ -213,8 +213,11 @@ export default async function CarPage({ params }: { params: Params }) {
 
           {isPrivate ? (
             <div className="site-card">
-              <h3>{t("car.privateSeller")}</h3>
-              <p><b>{car.seller.name}</b>{car.city ? ` · ${car.city}` : ""}</p>
+              <h3>{car.seller.business ? "Registered dealer" : t("car.privateSeller")}</h3>
+              {car.seller.business ? (
+                <p><Link href={`/dealers/${car.seller.business.slug}`} className="site-link"><b>{car.seller.business.name}</b></Link> · {car.seller.business.city}{car.seller.business.verified ? " · ✓ verified" : ""}</p>
+              ) : null}
+              {!car.seller.business ? <p><b>{car.seller.name}</b>{car.city ? ` · ${car.city}` : ""}</p> : null}
               {car.negotiable ? <p className="mk-muted">Price is negotiable</p> : null}
               {trust ? <TrustCard trust={trust} targetType="member" targetId={trustTarget.id} name={car.seller.name || "this seller"} /> : null}
               {car.seller.phone ? <ShowPhone phone={car.seller.phone} /> : null}
