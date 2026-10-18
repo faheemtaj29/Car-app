@@ -2994,3 +2994,47 @@ a.pay-stat:hover { box-shadow: var(--shadow-md); }
 
 /* Install-as-app button (shown only when the browser offers it) */
 .app-install { position: fixed; inset-inline-end: 16px; bottom: 16px; z-index: 40; box-shadow: var(--shadow-md); }
+
+/* ===== Offers ===== */
+.offer-thread { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+.offer-header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; margin-bottom: 8px; }
+.offer-header b { flex: 1; }
+.offer-status { font-size: 11px; font-style: normal; border-radius: 99px; padding: 2px 8px; background: var(--paper); }
+.offer-status.accepted { background: var(--jade-light); color: var(--jade-dark); }
+.offer-status.declined { background: var(--red-light); color: var(--red); }
+.offer-status.countered { background: var(--saffron-light); color: #7a4a00; }
+.offer-log { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.offer-entry { font-size: 13px; padding: 4px 8px; border-radius: 6px; background: var(--paper); max-width: 75%; }
+.offer-entry.seller { align-self: flex-end; background: var(--jade-light); }
+.offer-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* ===== AI chat ===== */
+.ai-fab { position: fixed; bottom: 24px; right: 24px; width: 52px; height: 52px; border-radius: 50%; font-size: 22px; background: var(--jade); color: #fff; border: none; cursor: pointer; box-shadow: var(--shadow-md); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.ai-chat { position: fixed; bottom: 24px; right: 24px; width: min(360px, calc(100vw - 24px)); background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-md); display: flex; flex-direction: column; max-height: 480px; z-index: 1000; }
+.ai-chat-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.ai-chat-body { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.ai-msg { font-size: 13px; line-height: 1.5; padding: 8px 10px; border-radius: 8px; max-width: 85%; }
+.ai-msg.user { background: var(--jade); color: #fff; align-self: flex-end; }
+.ai-msg.assistant { background: var(--paper); align-self: flex-start; }
+.ai-chat-foot { padding: 10px 12px; border-top: 1px solid var(--line); display: flex; gap: 8px; }
+.ai-chat-foot .site-input { flex: 1; }
+.ai-price-hint { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+
+/* ===== Compare page mobile ===== */
+.compare-table { width: 100%; border-collapse: collapse; }
+.compare-table th, .compare-table td { padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: 13px; min-width: 120px; }
+.compare-table th { background: var(--paper); font-weight: 600; position: sticky; top: 0; z-index: 1; }
+.compare-table td.diff { background: var(--saffron-light); font-weight: 600; }
+.compare-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* Compare page: mobile-first sticky label column */
+@media (max-width: 640px) {
+  .mk-compare tbody th { position: sticky; left: 0; background: var(--card); z-index: 1; width: 110px; font-size: 12px; padding: 8px; }
+  .mk-compare-section th { position: sticky; left: 0; z-index: 2; }
+  .mk-compare td, .mk-compare th { padding: 8px 10px; }
+  .mk-compare-photo { height: 80px; }
+  .mk-compare thead th:first-child { position: sticky; left: 0; z-index: 3; background: var(--card); }
+  .table-scroll { -webkit-overflow-scrolling: touch; }
+}
+/* Highlight differing values between compared cars */
+.mk-compare td.diff-hi { background: var(--saffron-light); }

@@ -182,6 +182,8 @@ export interface IClassifiedAd {
   status: AdStatus;
   rejectReason?: string;
   featured: boolean;
+  /** Set by staff OR auto-cleared after featuredUntil. */
+  featuredUntil?: Date;
   publishedAt?: Date;
   expiresAt?: Date;
   reviewedBy?: string;
@@ -235,6 +237,7 @@ const ClassifiedAdSchema = new Schema<IClassifiedAd>(
     status: { type: String, enum: AD_STATUSES, default: "pending" },
     rejectReason: String,
     featured: { type: Boolean, default: false },
+    featuredUntil: Date,
     publishedAt: Date,
     expiresAt: Date,
     reviewedBy: String,

@@ -13,6 +13,8 @@ import { Vehicle, type IVehicle } from "@/backend/models/Dealership";
 import { ServiceError, type SessionUser } from "@/backend/types";
 import type { MemberSession } from "@/backend/lib/memberSession";
 import { recordAudit } from "@/backend/lib/audit";
+import { notifyService } from "@/backend/lib/notify";
+import { siteUrl } from "@/lib/site";
 import { marketplaceService } from "@/backend/services/marketplace.service";
 import { BOOKING_LABEL, BOOKING_SLOTS, bookableDates, slotIsFuture } from "@/lib/booking";
 import type { bookingActionSchema, bookingSchema } from "@/backend/validators/engagement.validator";
@@ -148,6 +150,14 @@ export const bookingService = {
     if (input.staffNote) b.staffNote = input.staffNote;
     if (input.status === "cancelled") b.slotKey = `${b.slotKey}|cancelled|${b._id}`; // frees the slot
     await b.save();
+    // Notify buyer and seller (fire-and-forget)
+    const base = siteUrl();
+    if (b.status === "confirmed" && b.phone) {
+      notifyService.send({ event: "booking_confirmed", to: b.phone, name: b.name, vars: { name: b.name, number: b.number, type: b.type.replace("_", " "), date: new Date(b.date).toLocaleDateString("en-GB"), slot: b.slot, address: b.address || "" } });
+    }
+    if (b.status === "cancelled" && b.phone) {
+      notifyService.send({ event: "booking_cancelled", to: b.phone, name: b.name, vars: { name: b.name, number: b.number, date: new Date(b.date).toLocaleDateString("en-GB"), slot: b.slot, reason: b.staffNote || "" } });
+    }
     return b.toObject();
   },
 };

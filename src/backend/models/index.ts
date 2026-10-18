@@ -10,4 +10,5 @@ export { MarketMember, ClassifiedAd, ShopOrder, ShopSettings, Coupon } from "./M
 export { SupplierProduct } from "./Partners";
 export { VehicleSnapshot, GarageCar, Booking, Review, Alert, TokenRequest } from "./Engagement";
 export { Lock } from "./Lock";
+export { Offer } from "./Offer";
 export { SearchLog } from "./SearchLog";

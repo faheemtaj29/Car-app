@@ -45,3 +45,5 @@ export function statusForCode(code: ServiceErrorCode): number {
       return 400;
   }
 }
+
+export type Doc<T> = T & { _id: import("mongoose").Types.ObjectId };

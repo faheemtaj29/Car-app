@@ -85,6 +85,7 @@ export function AuthPanel({ onDone, intro }: { onDone: () => void; intro?: strin
 type AdForm = Omit<Ad, "_id" | "status" | "rejectReason" | "expiresAt" | "views" | "contacts" | "messages" | "year" | "mileage" | "listPrice" | "engineCc" | "specs" | "videoUrl" | "registrationNo" | "chassisNo"> & {
   videoUrl: string; registrationNo: string; chassisNo: string;
   year: string; mileage: string; listPrice: string; engineCc: string; specs: Record<string, string | number | boolean>;
+  aiPriceHint?: { low: number; mid: number; high: number; reasoning: string };
 };
 
 function blankAd(type: VehicleType, me?: Me["member"]): AdForm {
@@ -109,6 +110,7 @@ export function AdEditor({ initial, editId, onSaved }: { initial: AdForm; editId
   const [f, setF] = useState<AdForm>(initial);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
   const set = <K extends keyof AdForm>(k: K, v: AdForm[K]) => setF((x) => ({ ...x, [k]: v }));
   const year = new Date().getFullYear();
   const isBike = f.vehicleType === "bike";
@@ -199,11 +201,45 @@ export function AdEditor({ initial, editId, onSaved }: { initial: AdForm; editId
 
       <div className="site-form-section">Specifications & features <span className="mk-muted">(optional — detailed ads sell faster)</span></div>
       <VehicleSpecsEditor kind={f.vehicleType} specs={f.specs} features={f.features} onSpecs={(s) => set("specs", s)} onFeatures={(x) => set("features", x)} />
-      <label className="site-form-wide">Description<textarea rows={4} value={f.description} onChange={(e) => set("description", e.target.value)} placeholder="Condition, service history, reason for selling…" /></label>
+      <div className="site-form-wide">
+        <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          Description
+          <button type="button" className="mk-link" style={{ fontSize: 12 }} disabled={aiLoading}
+            onClick={async () => {
+              setAiLoading(true);
+              try {
+                const r = await fetch("/api/site/ai", { method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "describe", vehicle: { vehicleType: f.vehicleType, make: f.make, model: f.model, variant: f.variant, year: Number(f.year), mileage: Number(f.mileage), fuel: f.fuel, transmission: f.transmission, engineCc: f.engineCc ? Number(f.engineCc) : undefined, color: f.color, condition: f.condition, features: f.features, city: f.city } }) });
+                const d = await r.json();
+                if (d.description) set("description", d.description);
+              } finally { setAiLoading(false); }
+            }}>
+            {aiLoading ? "Writing…" : "✨ AI write description"}
+          </button>
+        </label>
+        <textarea rows={4} value={f.description} onChange={(e) => set("description", e.target.value)} placeholder="Condition, service history, reason for selling…" style={{ width: "100%" }} />
+      </div>
 
       <div className="site-form-section">Price & contact</div>
       <div className="site-form-grid">
-        <label>Asking price (PKR)<input type="number" min={1000} value={f.listPrice} onChange={(e) => set("listPrice", e.target.value)} required /></label>
+        <label>Asking price (PKR)
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input type="number" min={1000} value={f.listPrice} onChange={(e) => set("listPrice", e.target.value)} required style={{ flex: 1 }} />
+            <button type="button" className="mk-link" style={{ fontSize: 12, whiteSpace: "nowrap" }} disabled={aiLoading || !f.make || !f.model}
+              onClick={async () => {
+                setAiLoading(true);
+                try {
+                  const r = await fetch("/api/site/ai", { method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "price", vehicle: { vehicleType: f.vehicleType, make: f.make, model: f.model, variant: f.variant, year: Number(f.year), mileage: Number(f.mileage), condition: f.condition, city: f.city } }) });
+                  const d = await r.json();
+                  if (d.estimate) set("aiPriceHint", d.estimate);
+                } finally { setAiLoading(false); }
+              }}>
+              ✨ Suggest price
+            </button>
+          </div>
+          {f.aiPriceHint ? <div className="ai-price-hint">Suggested range: Rs {f.aiPriceHint.low.toLocaleString()} – Rs {f.aiPriceHint.high.toLocaleString()} · {f.aiPriceHint.reasoning}</div> : null}
+        </label>
         <label>City<input value={f.city} onChange={(e) => set("city", e.target.value)} required list={CITY_LIST_ID} autoComplete="off" /></label>
         <label>Your name<input value={f.sellerName} onChange={(e) => set("sellerName", e.target.value)} required /></label>
         <label>Contact number<input value={f.sellerPhone} onChange={(e) => set("sellerPhone", e.target.value)} required inputMode="tel" /></label>

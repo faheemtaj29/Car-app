@@ -56,6 +56,8 @@ export interface ISettings {
   /** Safe token on/off and limits. */
   tokenEnabled?: boolean;
   tokenHoldDays?: number;
+  /** WhatsApp/SMS notification settings. */
+  notifyProvider?: "off" | "twilio" | "jazz" | "webhook";
   createdAt: Date;
   updatedAt: Date;
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { AccountApp } from "@/components/marketplace/Member";
-import { AccountExtras } from "@/components/marketplace/AccountExtras";
+import { AccountExtras, OffersSection, MyAdStats, AiCarFinder } from "@/components/marketplace/AccountExtras";
 import { SellerSetup } from "@/components/marketplace/Seller";
 import { SupplierDashboard } from "@/components/marketplace/SupplierDashboard";
 
@@ -14,7 +14,10 @@ export default function AccountPage() {
       <AccountApp />
       <SellerSetup />
       <SupplierDashboard />
+      <MyAdStats />
+      <OffersSection />
       <AccountExtras />
+      <AiCarFinder />
     </section>
   );
 }

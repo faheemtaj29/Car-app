@@ -19,6 +19,8 @@ import { DealerCustomer, Vehicle, type IVehicle } from "@/backend/models/Dealers
 import { TokenRequest, type ITokenRequest } from "@/backend/models/Engagement";
 import { ServiceError, type SessionUser } from "@/backend/types";
 import type { MemberSession } from "@/backend/lib/memberSession";
+import { notifyService } from "@/backend/lib/notify";
+import { siteUrl } from "@/lib/site";
 import { recordAudit } from "@/backend/lib/audit";
 import { dealService } from "@/backend/services/dealership.service";
 import { marketplaceService } from "@/backend/services/marketplace.service";
@@ -138,6 +140,10 @@ export const tokenService = {
         if (dealId) await dealService.act(dealId, { action: "cancel", reason: `Token ${t.number} could not be verified` }, actor).catch(() => undefined);
         await unclaim();
         throw e;
+      }
+      if (t.phone) {
+        const fresh2 = await TokenRequest.findById(t._id).lean<Doc<ITokenRequest>>();
+        notifyService.send({ event: "token_verified", to: t.phone, name: t.name, vars: { name: t.name, number: t.number, car: t.vehicleTitle, amount: t.amount.toLocaleString(), holdUntil: fresh2?.holdUntil ? new Date(fresh2.holdUntil).toLocaleDateString("en-GB") : "", dealNo: fresh2?.dealNumber || "" } });
       }
       await recordAudit({ module: "dealership", action: "token_verified", entity: "token", entityId: id, summary: `${t.number} verified, ${t.amount.toLocaleString()} for ${t.vehicleTitle}`, actor });
       return TokenRequest.findById(t._id).lean();

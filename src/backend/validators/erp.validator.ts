@@ -57,6 +57,7 @@ export const settingsSchema = z.object({
   tokenInstructions: z.string().trim().max(1000).optional(),
   tokenEnabled: z.boolean().default(false),
   tokenHoldDays: z.coerce.number().int().min(1).max(30).default(7),
+  notifyProvider: z.enum(["off", "twilio", "jazz", "webhook"]).default("off"),
   banks: z
     .array(
       z.object({

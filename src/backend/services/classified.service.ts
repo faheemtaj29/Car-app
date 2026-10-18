@@ -9,6 +9,8 @@ import { hashPassword, verifyPassword } from "@/backend/lib/password";
 import { ServiceError, type SessionUser } from "@/backend/types";
 import type { MemberSession } from "@/backend/lib/memberSession";
 import { AD_LIMITS } from "@/lib/shop";
+import { notifyService } from "@/backend/lib/notify";
+import { siteUrl } from "@/lib/site";
 import { historyService, nextPriceDrop } from "@/backend/services/history.service";
 import { partnerService } from "@/backend/services/partner.service";
 import type {
@@ -236,7 +238,15 @@ export const classifiedService = {
     ad.reviewedBy = actor.name;
     ad.reviewedAt = now;
     await ad.save();
-    if (input.action === "approve") await historyService.record(ad.toObject(), "private");
+    if (input.action === "approve") {
+      await historyService.record(ad.toObject(), "private");
+      // Notify seller
+      const member = await MarketMember.findById(ad.memberId).select("phone name").lean<{phone:string;name:string}>();
+      if (member) notifyService.send({ event: "ad_approved", to: member.phone, name: member.name, vars: { title: `${ad.year} ${ad.make} ${ad.model}`, link: `${siteUrl()}/cars/${ad._id}` } });
+    } else if (input.action === "reject") {
+      const member = await MarketMember.findById(ad.memberId).select("phone name").lean<{phone:string;name:string}>();
+      if (member) notifyService.send({ event: "ad_rejected", to: member.phone, name: member.name, vars: { title: `${ad.year} ${ad.make} ${ad.model}`, reason: ad.rejectReason || "" } });
+    }
     return ad;
   },
 };
