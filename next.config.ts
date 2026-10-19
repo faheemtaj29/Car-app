@@ -23,6 +23,12 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "images.unsplash.com" },
+      { protocol: "https", hostname: "**.cloudinary.com" },
+    ],
+  },
   // Self-contained server bundle for the Docker image.
   output: "standalone",
   poweredByHeader: false,

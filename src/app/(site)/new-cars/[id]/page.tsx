@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { newCarService } from "@/backend/services/newcar.service";
 import { formatPKR } from "@/lib/dealership";
 import { NewCarQuoteForm } from "@/components/marketplace/NewCarClient";
+import { carImageUrl } from "@/lib/carImages";
 
 export const dynamic = "force-dynamic";
 
@@ -30,9 +32,20 @@ export default async function NewCarDetailPage({ params }: Params) {
         {/* Gallery */}
         <div className="mk-main">
           <div className="nc-gallery">
-            {car.photos.length > 0
-              ? car.photos.map((p, i) => <img key={i} src={p} alt={`${car.make} ${car.model}`} className={i === 0 ? "nc-main-photo" : "nc-thumb"} loading={i === 0 ? "eager" : "lazy"} />)
-              : <div className="nc-no-photo-lg">No photos yet</div>}
+            {(car.photos.length > 0 ? car.photos : [carImageUrl(car.make, car.bodyType, 1200, 85)]).map((p, i) => (
+              <div key={i} className={i === 0 ? "nc-main-photo-wrap" : "nc-thumb-wrap"}>
+                <Image
+                  src={p}
+                  alt={`${car.make} ${car.model}`}
+                  fill
+                  sizes={i === 0 ? "(max-width:900px) 100vw, 660px" : "120px"}
+                  className={i === 0 ? "nc-main-photo" : "nc-thumb"}
+                  loading={i === 0 ? "eager" : "lazy"}
+                  priority={i === 0}
+                  unoptimized={car.photos.length === 0}
+                />
+              </div>
+            ))}
           </div>
 
           {/* Specs headline row */}

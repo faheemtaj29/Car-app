@@ -1,7 +1,9 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 import { newCarService, type PublicNewCar } from "@/backend/services/newcar.service";
 import { formatPKR } from "@/lib/dealership";
+import { carImageUrl } from "@/lib/carImages";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -15,9 +17,15 @@ function NewCarCard({ car }: { car: PublicNewCar }) {
   return (
     <Link href={`/new-cars/${car._id}`} className="nc-card">
       <div className="nc-photo">
-        {car.photos[0]
-          ? <img src={car.photos[0]} alt={`${car.year} ${car.make} ${car.model}`} loading="lazy" />
-          : <div className="nc-no-photo">📷</div>}
+        <Image
+          src={car.photos[0] || carImageUrl(car.make, car.bodyType)}
+          alt={`${car.year} ${car.make} ${car.model}`}
+          fill
+          sizes="(max-width: 600px) 100vw, 280px"
+          className="nc-img"
+          loading="lazy"
+          unoptimized={!car.photos[0]}
+        />
         <span className="nc-badge">New</span>
       </div>
       <div className="nc-info">
