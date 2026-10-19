@@ -17,12 +17,24 @@ type Data = {
   money: { income: number; expense: number; balance: number } | null;
 };
 
-function Tile({ href, label, value, tone }: { href: string; label: string; value: string | number; tone?: "good" | "warn" | "bad" }) {
+function KPI({ href, label, value, tone, icon }: { href: string; label: string; value: string | number; tone?: "good" | "warn" | "bad"; icon: string }) {
   const color = tone === "good" ? "var(--jade-dark)" : tone === "warn" ? "#96650f" : tone === "bad" ? "var(--red)" : undefined;
   return (
-    <Link href={href} className="pay-stat">
-      <div className="tag">{label}</div>
-      <div className="num" style={{ color }}>{value}</div>
+    <Link href={href} className="dash-kpi">
+      <div className="dash-kpi-icon">{icon}</div>
+      <div className="dash-kpi-body">
+        <div className="dash-kpi-label">{label}</div>
+        <div className="dash-kpi-value" style={{ color }}>{value}</div>
+      </div>
+    </Link>
+  );
+}
+
+function QuickAction({ href, label, icon }: { href: string; label: string; icon: string }) {
+  return (
+    <Link href={href} className="dash-action">
+      <span className="dash-action-icon">{icon}</span>
+      <span>{label}</span>
     </Link>
   );
 }
@@ -41,50 +53,78 @@ export default function DashboardPage() {
 
   const hour = new Date().getHours();
   const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const today = new Date().toLocaleDateString("en-PK", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+
+  const alerts = [
+    d?.dealership?.followUpsDue ? `${d.dealership.followUpsDue} follow-up${d.dealership.followUpsDue > 1 ? "s" : ""} due today` : null,
+    d?.shop?.pending ? `${d.shop.pending} new shop order${d.shop.pending > 1 ? "s" : ""}` : null,
+    d?.adsPending ? `${d.adsPending} classified ad${d.adsPending > 1 ? "s" : ""} awaiting review` : null,
+  ].filter(Boolean) as string[];
 
   return (
-    <>
-      <Hero title={greet} subtitle="Today across the showroom, the online shop and your books" />
-      {error ? <div className="alert err">{error}</div> : null}
+    <div className="dash-wrap">
+      <Hero
+        title={greet}
+        subtitle={today}
+        live={alerts.length > 0 ? `${alerts.length} item${alerts.length > 1 ? "s" : ""} need attention` : "All clear"}
+      />
 
-      <Panel title="Sales floor" meta="ALL BRANCHES">
-        <div className="pay-stat-row" style={{ marginTop: 4 }}>
-          <Tile href="/dealership?tab=inventory" label="Cars & bikes in stock" value={d?.dealership?.unitsInStock ?? "—"} />
-          <Tile href="/dealership?tab=inventory" label="Stock at cost" value={d?.dealership ? formatCompact(d.dealership.stockCost) : "—"} />
-          <Tile href="/dealership?tab=deals" label="Sold this month" value={d?.dealership?.mtdUnits ?? "—"} tone="good" />
-          <Tile href="/dealership?tab=deals" label="Gross profit (MTD)" value={d?.dealership ? formatCompact(d.dealership.mtdGross) : "—"} tone="good" />
-          <Tile href="/dealership?tab=deals" label="Open deals" value={d?.dealership?.openDeals ?? "—"} />
-          <Tile href="/dealership?tab=customers" label="Follow-ups due" value={d?.dealership?.followUpsDue ?? "—"} tone={d?.dealership?.followUpsDue ? "bad" : undefined} />
+      {error ? <div className="alert err" style={{ marginBottom: 18 }}>{error}</div> : null}
+
+      {alerts.length > 0 && (
+        <div className="dash-alerts">
+          {alerts.map((a) => <div key={a} className="dash-alert-item">⚠️ {a}</div>)}
+        </div>
+      )}
+
+      {/* Quick actions */}
+      <Panel title="Quick Actions" meta="SHORTCUTS">
+        <div className="dash-actions-row">
+          <QuickAction href="/dealership?tab=inventory" label="Add Vehicle" icon="🚗" />
+          <QuickAction href="/dealership?tab=deals" label="New Deal" icon="🤝" />
+          <QuickAction href="/dealership?tab=classifieds" label="Review Ads" icon="📋" />
+          <QuickAction href="/ecommerce?tab=orders" label="Shop Orders" icon="📦" />
+          <QuickAction href="/dealership?tab=customers" label="Customers" icon="👥" />
+          <QuickAction href="/accounting?tab=vouchers" label="New Voucher" icon="📒" />
+          <QuickAction href="/settings" label="Settings" icon="⚙️" />
+          <QuickAction href="/" label="View Website" icon="🌐" />
+        </div>
+      </Panel>
+
+      {/* KPI overview */}
+      <Panel title="Sales Floor" meta="ALL BRANCHES">
+        <div className="dash-kpi-grid">
+          <KPI href="/dealership?tab=inventory" label="In Stock" value={d?.dealership?.unitsInStock ?? "—"} icon="🚗" />
+          <KPI href="/dealership?tab=inventory" label="Stock Cost" value={d?.dealership ? formatCompact(d.dealership.stockCost) : "—"} icon="💰" />
+          <KPI href="/dealership?tab=deals" label="Sold (MTD)" value={d?.dealership?.mtdUnits ?? "—"} tone="good" icon="✅" />
+          <KPI href="/dealership?tab=deals" label="Gross Profit" value={d?.dealership ? formatCompact(d.dealership.mtdGross) : "—"} tone="good" icon="📈" />
+          <KPI href="/dealership?tab=deals" label="Open Deals" value={d?.dealership?.openDeals ?? "—"} icon="🔄" />
+          <KPI href="/dealership?tab=customers" label="Follow-ups Due" value={d?.dealership?.followUpsDue ?? "—"} tone={d?.dealership?.followUpsDue ? "bad" : undefined} icon="📞" />
         </div>
       </Panel>
 
       <div className="grid-2">
-        <Panel title="Online shop & website" meta="WEBSITE">
-          <div className="pay-stat-row" style={{ marginTop: 4 }}>
-            <Tile href="/ecommerce?tab=orders" label="New orders" value={d?.shop?.pending ?? 0} tone={d?.shop?.pending ? "warn" : undefined} />
-            <Tile href="/ecommerce?tab=orders" label="To dispatch" value={d?.shop?.toShip ?? 0} />
-            <Tile href="/ecommerce?tab=orders" label="Shop revenue (MTD)" value={formatCompact(d?.shop?.mtdRevenue ?? 0)} tone="good" />
-            <Tile href="/dealership?tab=classifieds" label="Ads awaiting review" value={d?.adsPending ?? 0} tone={d?.adsPending ? "bad" : undefined} />
-            <Tile href="/dealership?tab=customers" label="Web leads (7 days)" value={d?.dealership?.webLeads7d ?? 0} />
-            <Tile href="/cars" label="Live vehicle listings" value={d?.dealership?.publishedListings ?? 0} />
+        <Panel title="Website & Online Shop" meta="LIVE">
+          <div className="dash-kpi-grid dash-kpi-grid-3">
+            <KPI href="/ecommerce?tab=orders" label="New Orders" value={d?.shop?.pending ?? 0} tone={d?.shop?.pending ? "warn" : undefined} icon="🛒" />
+            <KPI href="/ecommerce?tab=orders" label="To Dispatch" value={d?.shop?.toShip ?? 0} icon="📮" />
+            <KPI href="/ecommerce?tab=orders" label="Shop Revenue" value={formatCompact(d?.shop?.mtdRevenue ?? 0)} tone="good" icon="💳" />
+            <KPI href="/dealership?tab=classifieds" label="Ads Pending" value={d?.adsPending ?? 0} tone={d?.adsPending ? "bad" : undefined} icon="📢" />
+            <KPI href="/dealership?tab=customers" label="Web Leads (7d)" value={d?.dealership?.webLeads7d ?? 0} icon="🎯" />
+            <KPI href="/cars" label="Live Listings" value={d?.dealership?.publishedListings ?? 0} tone="good" icon="🌐" />
           </div>
         </Panel>
-        <Panel title="Money" meta="POSTED VOUCHERS">
-          <div className="pay-stat-row" style={{ marginTop: 4 }}>
-            <Tile href="/accounting?tab=pnl&node=income-statement" label="Income" value={formatCompact(d?.money?.income ?? 0)} tone="good" />
-            <Tile href="/accounting?tab=pnl&node=income-statement" label="Expenses" value={formatCompact(d?.money?.expense ?? 0)} />
-            <Tile href="/accounting?tab=overview&node=accounting-dashboard" label="Net" value={formatCompact(d?.money?.balance ?? 0)} tone={(d?.money?.balance ?? 0) < 0 ? "bad" : "good"} />
-          </div>
-          <div className="chips" style={{ marginTop: 6 }}>
-            <Link className="filter-chip" href="/dealership?tab=inventory">+ Add vehicle</Link>
-            <Link className="filter-chip" href="/dealership?tab=deals">+ New deal</Link>
-            <Link className="filter-chip" href="/ecommerce?tab=products">+ Shop product</Link>
-            <Link className="filter-chip" href="/inventory?tab=vouchers&type=purchase&node=purchase">+ Stock purchase</Link>
+
+        <Panel title="Financials" meta="POSTED VOUCHERS">
+          <div className="dash-kpi-grid dash-kpi-grid-1">
+            <KPI href="/accounting?tab=pnl&node=income-statement" label="Total Income" value={formatCompact(d?.money?.income ?? 0)} tone="good" icon="⬆️" />
+            <KPI href="/accounting?tab=pnl&node=income-statement" label="Total Expenses" value={formatCompact(d?.money?.expense ?? 0)} icon="⬇️" />
+            <KPI href="/accounting?tab=overview&node=accounting-dashboard" label="Net Balance" value={formatCompact(d?.money?.balance ?? 0)} tone={(d?.money?.balance ?? 0) < 0 ? "bad" : "good"} icon="🏦" />
           </div>
         </Panel>
       </div>
 
       <DealershipOverview branch="" onOpenCustomer={() => router.push("/dealership?tab=customers")} />
-    </>
+    </div>
   );
 }
