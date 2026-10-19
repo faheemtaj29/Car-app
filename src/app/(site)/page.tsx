@@ -70,6 +70,7 @@ export default async function HomePage() {
       <section className="site-section mk-wrap home-tiles">
         <Link href="/cars" className="home-tile"><span>🚗</span><b>{t("home.tileCars")}</b><small>{cars.total} {t("home.forSale")}</small></Link>
         <Link href="/bikes" className="home-tile"><span>🏍️</span><b>{t("home.tileBikes")}</b><small>{bikes.total} {t("home.forSale")}</small></Link>
+        <Link href="/new-cars" className="home-tile"><span>✨</span><b>New Cars</b><small>Prices & variants</small></Link>
         <Link href="/shop" className="home-tile"><span>🛢️</span><b>{t("home.tileShop")}</b><small>{shop.total} {t("home.products")}</small></Link>
         <Link href="/post-ad" className="home-tile"><span>📸</span><b>{t("home.tileSelf")}</b><small>{t("home.postFree")}</small></Link>
         <Link href="/sell-car" className="home-tile"><span>🤝</span><b>{t("home.tileUs")}</b><small>{t("home.instantOffer")}</small></Link>

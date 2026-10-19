@@ -25,6 +25,7 @@ export default async function SiteLayout({ children }: { children: ReactNode }) 
   const nav = [
     { href: "/cars", label: t("nav.cars") },
     { href: "/bikes", label: t("nav.bikes") },
+    { href: "/new-cars", label: "New Cars" },
     ...(flags.shop ? [{ href: "/shop", label: t("nav.shop") }] : []),
     { href: "/sell-car", label: t("nav.sell") },
     { href: "/car-finance", label: t("nav.finance") },

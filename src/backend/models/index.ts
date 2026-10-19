@@ -12,3 +12,4 @@ export { VehicleSnapshot, GarageCar, Booking, Review, Alert, TokenRequest } from
 export { Lock } from "./Lock";
 export { Offer } from "./Offer";
 export { SearchLog } from "./SearchLog";
+export { NewCar } from "./NewCar";

@@ -118,6 +118,10 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    label: "Catalogue",
+    items: [{ href: "/dashboard/new-cars", label: "New Cars", Icon: CarIcon }],
+  },
+  {
     label: "System",
     items: [{ href: "/settings", label: "Settings", Icon: SettingsIcon, roles: ["admin"] }],
   },
