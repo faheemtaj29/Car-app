@@ -63,11 +63,16 @@ svg.ico {
   height: 18px;
   flex-shrink: 0;
   stroke: currentColor;
-  stroke-width: 1.6;
+  stroke-width: 1.75;
   fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
+  shape-rendering: geometricPrecision;
+  vector-effect: non-scaling-stroke;
 }
+svg.ico.ico-sm { width: 14px; height: 14px; stroke-width: 1.6; }
+svg.ico.ico-lg { width: 22px; height: 22px; stroke-width: 1.75; }
+svg.ico.ico-xl { width: 28px; height: 28px; stroke-width: 1.75; }
 
 .app {
   display: flex;
