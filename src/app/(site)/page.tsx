@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CarIcon, GlobeIcon, ShopIcon, TagIcon, KeyIcon, ChartIcon } from "@/components/Icons";
 import { ListingCard } from "@/components/marketplace/Listing";
 import { ProductCard } from "@/components/marketplace/ShopCards";
 import { marketplaceService } from "@/backend/services/marketplace.service";
@@ -68,12 +69,12 @@ export default async function HomePage() {
       </section>
 
       <section className="site-section mk-wrap home-tiles">
-        <Link href="/cars" className="home-tile"><span>🚗</span><b>{t("home.tileCars")}</b><small>{cars.total} {t("home.forSale")}</small></Link>
-        <Link href="/bikes" className="home-tile"><span>🏍️</span><b>{t("home.tileBikes")}</b><small>{bikes.total} {t("home.forSale")}</small></Link>
-        <Link href="/new-cars" className="home-tile"><span>✨</span><b>New Cars</b><small>Prices & variants</small></Link>
-        <Link href="/shop" className="home-tile"><span>🛢️</span><b>{t("home.tileShop")}</b><small>{shop.total} {t("home.products")}</small></Link>
-        <Link href="/post-ad" className="home-tile"><span>📸</span><b>{t("home.tileSelf")}</b><small>{t("home.postFree")}</small></Link>
-        <Link href="/sell-car" className="home-tile"><span>🤝</span><b>{t("home.tileUs")}</b><small>{t("home.instantOffer")}</small></Link>
+        <Link href="/cars" className="home-tile"><CarIcon className="ico ico-xl home-tile-ico" /><b>{t("home.tileCars")}</b><small>{cars.total} {t("home.forSale")}</small></Link>
+        <Link href="/bikes" className="home-tile"><ChartIcon className="ico ico-xl home-tile-ico" /><b>{t("home.tileBikes")}</b><small>{bikes.total} {t("home.forSale")}</small></Link>
+        <Link href="/new-cars" className="home-tile"><GlobeIcon className="ico ico-xl home-tile-ico" /><b>New Cars</b><small>Prices &amp; variants</small></Link>
+        <Link href="/shop" className="home-tile"><ShopIcon className="ico ico-xl home-tile-ico" /><b>{t("home.tileShop")}</b><small>{shop.total} {t("home.products")}</small></Link>
+        <Link href="/post-ad" className="home-tile"><TagIcon className="ico ico-xl home-tile-ico" /><b>{t("home.tileSelf")}</b><small>{t("home.postFree")}</small></Link>
+        <Link href="/sell-car" className="home-tile"><KeyIcon className="ico ico-xl home-tile-ico" /><b>{t("home.tileUs")}</b><small>{t("home.instantOffer")}</small></Link>
       </section>
 
       <section className="site-section mk-wrap">

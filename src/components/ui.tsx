@@ -33,6 +33,9 @@ export function OptionSelect({
 }) {
   const [options, setOptions] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
+  const [inputOpen, setInputOpen] = useState(false);
+  const [inputVal, setInputVal] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let live = true;
@@ -53,31 +56,34 @@ export function OptionSelect({
     };
   }, [listKey]);
 
-  async function addOption() {
-    const entered = window.prompt(`${addLabel}:`);
-    const clean = entered?.trim();
+  async function submitNew() {
+    const clean = inputVal.trim();
     if (!clean) return;
     const existing = options.find((item) => item.toLowerCase() === clean.toLowerCase());
     if (existing) {
       onChange(existing);
+      setInputOpen(false);
+      setInputVal("");
       return;
     }
-
     setAdding(true);
+    setError("");
     try {
       const res = await fetch("/api/settings/options", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ key: listKey, value: clean }),
       });
-      const data = await res.json();
+      const data = await res.json() as { value?: string; error?: string };
       if (!res.ok) {
-        window.alert(data.error || "Could not add option");
+        setError(data.error || "Could not add option");
         return;
       }
-      setOptions((current) => [...current, data.value]);
-      onChange(data.value);
+      setOptions((current) => [...current, data.value!]);
+      onChange(data.value!);
       window.dispatchEvent(new Event("am-options-updated"));
+      setInputOpen(false);
+      setInputVal("");
     } finally {
       setAdding(false);
     }
@@ -86,30 +92,47 @@ export function OptionSelect({
   const visible = value && !options.includes(value) ? [...options, value] : options;
 
   return (
-    <div className="select-add-row">
-      <select
-        className={inputClass}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        required={required}
-      >
-        <option value="">{placeholder}</option>
-        {visible.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-      <button
-        type="button"
-        className="select-add-btn"
-        onClick={addOption}
-        disabled={adding}
-        title={addLabel}
-        aria-label={addLabel}
-      >
-        {adding ? "…" : "+"}
-      </button>
+    <div className="select-add-wrap">
+      <div className="select-add-row">
+        <select
+          className={inputClass}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          required={required}
+        >
+          <option value="">{placeholder}</option>
+          {visible.map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="select-add-btn"
+          onClick={() => { setInputOpen((v) => !v); setError(""); }}
+          title={addLabel}
+          aria-label={addLabel}
+          aria-expanded={inputOpen}
+        >
+          {inputOpen ? "✕" : "+"}
+        </button>
+      </div>
+      {inputOpen && (
+        <div className="select-add-inline">
+          <input
+            className={inputClass}
+            autoFocus
+            placeholder={addLabel}
+            value={inputVal}
+            onChange={(e) => setInputVal(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void submitNew(); } if (e.key === "Escape") setInputOpen(false); }}
+            maxLength={80}
+          />
+          <button type="button" className="btn-primary" onClick={() => void submitNew()} disabled={adding || !inputVal.trim()}>
+            {adding ? "…" : "Add"}
+          </button>
+        </div>
+      )}
+      {error && <p className="select-add-err">{error}</p>}
     </div>
   );
 }

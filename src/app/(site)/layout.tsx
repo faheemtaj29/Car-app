@@ -10,6 +10,7 @@ import { LangSwitch } from "@/components/marketplace/LangSwitch";
 import { getMyCity, getT } from "@/lib/i18n.server";
 import { AppInstall } from "@/components/marketplace/AppInstall";
 import { CityPicker } from "@/components/marketplace/CityPicker";
+import { MobileNav } from "@/components/marketplace/MobileNav";
 
 export const dynamic = "force-dynamic";
 
@@ -51,11 +52,12 @@ export default async function SiteLayout({ children }: { children: ReactNode }) 
           <CityPicker city={myCity} />
           <LangSwitch lang={lang} label={t("lang.switch")} />
           <HeaderBadges garageLabel={t("nav.garage")} />
-          <Link href="/saved" className="mk-saved-link" aria-label="Saved vehicles">{t("nav.saved")}</Link>
+          <Link href="/saved" className="mk-saved-link mob-hide" aria-label="Saved vehicles">{t("nav.saved")}</Link>
           {flags.shop ? <CartBadge /> : null}
-          <Link href="/account" className="site-btn ghost">{t("nav.account")}</Link>
-          {flags.classifieds ? <Link href="/post-ad" className="site-btn">{t("nav.postAd")}</Link> : null}
+          <Link href="/account" className="site-btn ghost mob-hide">{t("nav.account")}</Link>
+          {flags.classifieds ? <Link href="/post-ad" className="site-btn mob-hide">{t("nav.postAd")}</Link> : null}
         </div>
+        <MobileNav nav={nav} name={name} />
       </header>
 
       <main>{children}</main>
@@ -77,7 +79,7 @@ export default async function SiteLayout({ children }: { children: ReactNode }) 
           </div>
           <div>
             <h4>{t("foot.contact")}</h4>
-            {settings?.phone ? <p>📞 {settings.phone}</p> : null}
+            {settings?.phone ? <p><span className="foot-label">Phone:</span> {settings.phone}</p> : null}
             {settings?.whatsapp ? <p><a href={`https://wa.me/92${settings.whatsapp.replace(/\D/g, "").replace(/^0/, "")}`} target="_blank" rel="noreferrer">WhatsApp {settings.whatsapp}</a></p> : null}
             {settings?.email ? <p>{settings.email}</p> : null}
             {settings?.facebook ? <p><a href={settings.facebook} target="_blank" rel="noreferrer">Facebook</a></p> : null}

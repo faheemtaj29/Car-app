@@ -71,7 +71,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <head>
         <style id="am-theme" dangerouslySetInnerHTML={{ __html: b.css }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <noscript><div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "#1a1a1a", color: "#fff", textAlign: "center", padding: "10px", fontSize: "13px", zIndex: 9999 }}>This site works best with JavaScript enabled.</div></noscript>
+      </body>
     </html>
   );
 }
