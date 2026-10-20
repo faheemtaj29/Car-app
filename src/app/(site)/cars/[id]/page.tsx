@@ -44,7 +44,19 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   return {
     title: `${car.title} for sale — ${formatPKRShort(car.price)}`,
     description: `${car.year} ${car.make} ${car.model}, ${car.mileage.toLocaleString()} km, ${car.fuel || ""} ${car.transmission || ""}${car.city ? ` in ${car.city}` : ""}.`,
-    openGraph: car.photos[0] ? { images: [car.photos[0]] } : undefined,
+    alternates: { canonical: `${siteUrl()}${data.listing.vehicleType === "bike" ? "/bikes" : "/cars"}/${car._id}` },
+    openGraph: car.photos[0] ? {
+      images: [{ url: car.photos[0], width: 1200, height: 630, alt: car.title }],
+      type: "website",
+      title: `${car.title} — ${formatPKRShort(car.price)}`,
+      description: `${car.year} ${car.make} ${car.model}${car.city ? ` in ${car.city}` : ""}`,
+    } : undefined,
+    twitter: {
+      card: "summary_large_image",
+      title: `${car.title} — ${formatPKRShort(car.price)}`,
+      description: `${car.year} ${car.make} ${car.model}, ${car.mileage.toLocaleString()} km${car.city ? ` in ${car.city}` : ""}.`,
+      images: car.photos[0] ? [car.photos[0]] : undefined,
+    },
   };
 }
 

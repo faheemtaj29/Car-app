@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CarIcon, GlobeIcon, ShopIcon, TagIcon, KeyIcon, ChartIcon } from "@/components/Icons";
+import { CarIcon, GlobeIcon, ShopIcon, TagIcon, KeyIcon, ChartIcon, SearchIcon, AccountingIcon, FeesIcon, ReportsIcon, SettingsIcon, AlertIcon, PrintIcon } from "@/components/Icons";
 import { ListingCard } from "@/components/marketplace/Listing";
 import { ProductCard } from "@/components/marketplace/ShopCards";
 import { marketplaceService } from "@/backend/services/marketplace.service";
@@ -9,8 +9,38 @@ import { SHOP_CATEGORIES } from "@/lib/shop";
 import { CITIES, MAJOR_CITIES } from "@/lib/catalog";
 import { getT } from "@/lib/i18n.server";
 import { RecentlyViewed } from "@/components/marketplace/Extras";
+import type { Metadata } from "next";
+import { siteUrl } from "@/lib/site";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60;
+
+export async function generateMetadata(): Promise<Metadata> {
+  const [settings, { t }] = await Promise.all([
+    settingsService.get().catch(() => null),
+    getT(),
+  ]);
+  const name = settings?.businessName || "Auto Marketplace";
+  const tagline = settings?.tagline || "Cars, bikes, parts & accessories";
+  const description = `Buy and sell used & new cars and motorbikes, dealer stock, genuine parts and accessories. ${tagline}`;
+  const url = siteUrl();
+  return {
+    title: `${name} — ${tagline}`,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      title: `${name} — ${tagline}`,
+      description,
+      url,
+      siteName: name,
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${name} — ${tagline}`,
+      description,
+    },
+  };
+}
 
 const QUICK_CARS = ["Toyota", "Honda", "Suzuki", "KIA", "Hyundai", "Changan"];
 const QUICK_BIKES = ["Honda", "Yamaha", "Suzuki", "United", "Road Prince"];
@@ -36,7 +66,7 @@ export default async function HomePage() {
           <h1>{t("home.title")}</h1>
           <p>{t("home.lead")}</p>
           <form className="mk-ask home-ask" action="/search" method="get">
-            <span aria-hidden>✨</span>
+            <SearchIcon className="ico home-ask-ico" />
             <input name="ask" maxLength={200} aria-label="Describe the car or bike you want" placeholder={t("home.askPlaceholder")} />
             <button type="submit" className="site-btn">{t("home.find")}</button>
           </form>
@@ -81,16 +111,16 @@ export default async function HomePage() {
         <div className="home-why home-why-new">
           <h2>{t("home.why")}</h2>
           <ul>
-            <li><span>🔍</span>{t("home.why1")}</li>
-            <li><span>🧮</span>{t("home.why2")}</li>
-            <li><span>🏦</span><Link href="/car-finance">{t("home.why3")}</Link></li>
-            <li><span>📅</span>{t("home.why4")}</li>
-            <li><span>🔧</span><Link href="/garage">{t("home.why5")}</Link></li>
-            <li><span>🔒</span>{t("home.why6")}</li>
+            <li><SearchIcon className="ico home-why-ico" />{t("home.why1")}</li>
+            <li><AccountingIcon className="ico home-why-ico" />{t("home.why2")}</li>
+            <li><FeesIcon className="ico home-why-ico" /><Link href="/car-finance">{t("home.why3")}</Link></li>
+            <li><ReportsIcon className="ico home-why-ico" />{t("home.why4")}</li>
+            <li><SettingsIcon className="ico home-why-ico" /><Link href="/garage">{t("home.why5")}</Link></li>
+            <li><AlertIcon className="ico home-why-ico" />{t("home.why6")}</li>
           </ul>
           {costs ? (
             <div className="fuel-board">
-              <b>⛽ {t("home.fuelBoard")}</b>
+              <b><PrintIcon className="ico home-why-ico" /> {t("home.fuelBoard")}</b>
               <span>Petrol <b>Rs {costs.petrolPerLitre}</b>/L</span>
               <span>Diesel <b>Rs {costs.dieselPerLitre}</b>/L</span>
               <span>CNG <b>Rs {costs.cngPerKg}</b>/kg</span>
@@ -101,7 +131,7 @@ export default async function HomePage() {
 
       {deals.length ? (
         <section className="site-section mk-wrap home-block">
-          <div className="home-block-head"><h2>🔥 {t("home.deals")}</h2><span className="mk-muted">{t("home.dealsLead")}</span></div>
+          <div className="home-block-head"><h2><ChartIcon className="ico home-head-ico" /> {t("home.deals")}</h2><span className="mk-muted">{t("home.dealsLead")}</span></div>
           <div className="mk-grid">{deals.map((c) => <ListingCard key={c._id} car={c} />)}</div>
         </section>
       ) : null}
@@ -136,10 +166,10 @@ export default async function HomePage() {
 
       <section className="site-section mk-wrap">
         <div className="home-why">
-          <div><b>✓ Inspected dealer stock</b><p>Every dealer car carries an 8-point inspection score.</p></div>
-          <div><b>₨ Fair-price ratings</b><p>Each listing is compared with similar cars on the market.</p></div>
-          <div><b>🏦 Bank lease comparison</b><p>Every bank&apos;s instalment side by side, with eligibility.</p></div>
-          <div><b>🚚 Cash on delivery</b><p>Oils, parts and gear delivered nationwide.</p></div>
+          <div><b><AlertIcon className="ico home-why-ico" /> Inspected dealer stock</b><p>Every dealer car carries an 8-point inspection score.</p></div>
+          <div><b><ChartIcon className="ico home-why-ico" /> Fair-price ratings</b><p>Each listing is compared with similar cars on the market.</p></div>
+          <div><b><FeesIcon className="ico home-why-ico" /> Bank lease comparison</b><p>Every bank&apos;s instalment side by side, with eligibility.</p></div>
+          <div><b><ShopIcon className="ico home-why-ico" /> Cash on delivery</b><p>Oils, parts and gear delivered nationwide.</p></div>
         </div>
       </section>
     </>

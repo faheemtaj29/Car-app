@@ -69,6 +69,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable} ${urdu.variable}`}>
       <head>
+        <link rel="preconnect" href="https://res.cloudinary.com" />
+        <link rel="preconnect" href="https://images.unsplash.com" />
         <style id="am-theme" dangerouslySetInnerHTML={{ __html: b.css }} />
       </head>
       <body>

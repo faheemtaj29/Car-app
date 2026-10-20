@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { settingsService } from "@/backend/services/settings.service";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 
 /** Makes the website installable on a phone's home screen. */
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
